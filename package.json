@@ -1,0 +1,12 @@
+{
+  "name": "lettr-skills",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Agent skills for working with Lettr in code. The _generated/ tree is built from ../lettr-docs + the SDK repos by scripts/sync.mjs.",
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "sync:check": "node scripts/sync.mjs --check"
+  },
+  "license": "MIT"
+}

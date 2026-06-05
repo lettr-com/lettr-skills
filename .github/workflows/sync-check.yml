@@ -1,0 +1,38 @@
+name: sync-check
+
+# Fails if _generated/ has drifted from the committed sources. Because the docs
+# and SDK repos live outside this repo, CI regenerates against a checkout of
+# lettr-docs and diffs the result. Keeps hand-edits and stale generations out.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout lettr-skills
+        uses: actions/checkout@v4
+        with:
+          path: lettr-skills
+
+      - name: Checkout lettr-docs (source of truth)
+        uses: actions/checkout@v4
+        with:
+          repository: lettr-com/lettr-docs
+          path: lettr-docs
+          token: ${{ secrets.DOCS_REPO_TOKEN }}
+
+      - name: Fetch latest OpenAPI spec
+        working-directory: lettr-docs
+        run: curl -fsSL https://app.lettr.com/openapi.json -o openapi.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify _generated/ is in sync
+        working-directory: lettr-skills
+        run: node scripts/sync.mjs --check

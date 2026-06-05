@@ -1,0 +1,26 @@
+{
+  "_comment": "Inputs for scripts/sync.mjs. Paths are relative to the repo root. All sources are repos/docs the Lettr team already maintains as siblings of this repo.",
+  "docsRoot": "../lettr-docs",
+  "openapi": "../lettr-docs/openapi.json",
+  "docsBaseUrl": "https://docs.lettr.com",
+  "outDir": "_generated",
+  "languages": [
+    { "id": "php",    "label": "PHP",     "repo": "../lettr-php",     "quickstart": "php" },
+    { "id": "laravel","label": "Laravel", "repo": "../lettr-laravel", "quickstart": "laravel" },
+    { "id": "node",   "label": "Node.js", "repo": "../lettr-node",    "quickstart": "nodejs" },
+    { "id": "python", "label": "Python",  "repo": "../lettr-python",  "quickstart": "python" },
+    { "id": "go",     "label": "Go",      "repo": "../lettr-go",      "quickstart": "go" },
+    { "id": "rust",   "label": "Rust",    "repo": "../lettr-rust",    "quickstart": "rust" },
+    { "id": "java",   "label": "Java",    "repo": "../lettr-java",    "quickstart": "java" }
+  ],
+  "topics": [
+    { "id": "installation", "candidates": ["installation", "quickstart", "introduction"] },
+    { "id": "sending",      "candidates": ["sending-emails", "quickstart"] },
+    { "id": "templates",    "candidates": ["templates"] },
+    { "id": "domains",      "candidates": ["domains"] },
+    { "id": "audience",     "candidates": ["audience"] },
+    { "id": "campaigns",    "candidates": ["campaigns"] },
+    { "id": "webhooks",     "candidates": ["webhooks"] },
+    { "id": "advanced",     "candidates": ["advanced"] }
+  ]
+}

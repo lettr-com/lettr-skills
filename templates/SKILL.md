@@ -1,167 +1,44 @@
 ---
 name: templates
-description: Use when importing templates from another email provider (Mailgun, SendGrid, Postmark, SES, Mandrill) into Lettr, or when managing Lettr templates via API.
-inputs:
-    - name: LETTR_API_KEY
-      description: Lettr API key. Get yours at https://app.lettr.com/settings/api-keys
-      required: true
+description: Use when authoring or editing Lettr-managed email templates — writing HTML with merge tags, validating tags against a template version, and previewing or test-sending before shipping.
 ---
 
-# Template Management & Import
+# Author Lettr templates
 
-## Overview
+Templates live in Lettr and are referenced by `slug` when sending. This skill is about writing the HTML and merge tags correctly and verifying the result before it goes to real recipients.
 
-Lettr supports two template workflows:
-1. **Create/manage templates** directly via API
-2. **Import templates** from another email provider (Mailgun, SendGrid, Postmark, SES, Mandrill)
+## 1. Load the references
 
-## Template CRUD
+- **SDK calls:** detect the stack via [`../_shared/detect-stack.md`](../_shared/detect-stack.md), then read [`../_generated/sdk/<lang>/templates.md`](../_generated/sdk) for create/update/get and merge-tag calls.
+- **Wire contract:** [`../_generated/api/index.md`](../_generated/api/index.md) — the Templates section (`POST /templates`, `PUT /templates/{slug}`, `GET /templates/{slug}/merge-tags`, `GET /templates/html`).
+- **Merge-tag syntax & conventions:** [`references/merge-tags.md`](./references/merge-tags.md).
 
-### List Templates
+## 2. Find the project
 
-```bash
-curl -H "Authorization: Bearer $LETTR_API_KEY" \
-  https://app.lettr.com/api/templates
-```
+Templates are project-scoped. List projects (`GET /projects`) to get the right `project_id`. If the team has only one, use it.
 
-### Create Template
+## 3. Author the HTML
 
-```bash
-curl -X POST https://app.lettr.com/api/templates \
-  -H "Authorization: Bearer $LETTR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Welcome Email",
-    "html": "<h1>Welcome {{name}}</h1><p>Thanks for joining {{company}}.</p>"
-  }'
-```
+Write standard email-safe HTML. Use `{{variable}}` for merge tags; see the merge-tags reference for conditionals and loops. Keep in mind email-client constraints (inline-friendly CSS, table layouts) — the `sending` options control CSS inlining at send time.
 
-### Get Template
+## 4. Create or update
 
-```bash
-curl -H "Authorization: Bearer $LETTR_API_KEY" \
-  https://app.lettr.com/api/templates/welcome-email
-```
+- **New:** create with `name`, `html` (or `json` for the visual-editor format), and `project_id` if applicable. The response returns a `slug` — that's the send-time identifier.
+- **Existing:** update by slug. Each update creates a **new version**; merge tags are re-extracted automatically. Older versions stay pinnable at send time (`template_version`), which is how you keep production stable while drafting.
 
-### Update Template
+## 5. Confirm merge tags
 
-```bash
-curl -X PUT https://app.lettr.com/api/templates/welcome-email \
-  -H "Authorization: Bearer $LETTR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Welcome Email v2",
-    "html": "<h1>Welcome {{name}}!</h1>"
-  }'
-```
+Fetch the template's merge tags (`GET /templates/{slug}/merge-tags`, optionally per version). Cross-check the list against what the calling code passes as `substitution_data` — a missing variable renders as an empty string, which is rarely intended.
 
-### Delete Template
+## 6. Offer a preview / test
 
-```bash
-curl -X DELETE https://app.lettr.com/api/templates/welcome-email \
-  -H "Authorization: Bearer $LETTR_API_KEY"
-```
+Don't blast a test silently. Two levels, in order of cost:
 
-## Merge Tags
+1. **Render only:** fetch the rendered HTML (`GET /templates/html`) to show the user what default values produce — no email sent.
+2. **Live test (ask first):** send a real email using the slug + `substitution_data` to an address the user controls — the only way to know it renders in real clients. This is a send, so it's the `sending` skill's job; hand off with the slug. See [`references/testing.md`](./references/testing.md).
 
-Templates use `{{variable}}` syntax for dynamic content.
+## What this skill does not do
 
-```html
-<h1>Hello {{first_name}}</h1>
-<p>Your order #{{order_id}} has shipped.</p>
-```
-
-Pass data when sending:
-
-```json
-{
-  "template": "order-shipped",
-  "data": {
-    "first_name": "Jane",
-    "order_id": "12345"
-  }
-}
-```
-
-## Template Import
-
-Import stored templates from another email provider. Only needed for **provider-hosted** templates (not for templates in your codebase like Blade, Pug, or Jinja).
-
-### Supported Providers
-
-| Provider | Merge Tag Format | Conversion |
-|----------|-----------------|------------|
-| Mailgun | `%recipient.name%` | → `{{name}}` |
-| SendGrid | `{{name}}` | Compatible (no conversion) |
-| Postmark | `{{name}}` | Compatible (no conversion) |
-| AWS SES | `{{name}}` | Compatible (no conversion) |
-| Mandrill | `*\|NAME\|*` | → `{{name}}` |
-
-Resend does not have stored templates — no import needed.
-
-### Start Import
-
-```bash
-curl -X POST https://app.lettr.com/api/templates/import \
-  -H "Authorization: Bearer $LETTR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "postmark",
-    "api_key": "your-postmark-server-token"
-  }'
-```
-
-For Mailgun, also pass `domain` and optionally `region`:
-
-```bash
-curl -X POST https://app.lettr.com/api/templates/import \
-  -H "Authorization: Bearer $LETTR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "mailgun",
-    "api_key": "key-xxx",
-    "domain": "mg.example.com",
-    "region": "us"
-  }'
-```
-
-Response:
-
-```json
-{
-  "message": "Template import started.",
-  "data": {
-    "import_id": 42,
-    "status": "queued"
-  }
-}
-```
-
-### Check Import Status
-
-```bash
-curl -H "Authorization: Bearer $LETTR_API_KEY" \
-  https://app.lettr.com/api/templates/import/42
-```
-
-Response:
-
-```json
-{
-  "data": {
-    "status": "completed",
-    "total": 5,
-    "imported": 4,
-    "failed": 1,
-    "templates": [
-      {"old_id": "welcome", "new_slug": "welcome", "name": "Welcome", "status": "imported"},
-      {"old_id": "receipt", "new_slug": "receipt", "name": "Receipt", "status": "imported"},
-      {"old_id": "empty", "name": "Empty Template", "status": "failed", "error": "Template has no HTML content"}
-    ]
-  }
-}
-```
-
-### After Import
-
-Update template references in your codebase to use the new Lettr slugs from the `templates` mapping in the import status response.
+- It doesn't author the *send* call — that's `sending`.
+- It doesn't import templates from another provider; translate HTML with judgement if asked, but there's no conversion playbook.
+- It doesn't sync templates to repo files unless the project already mirrors them (e.g. a Node `lettr-kit` or `php artisan lettr:pull` flow) — then edit the local file and let that tooling push.
