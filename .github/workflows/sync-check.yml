@@ -18,12 +18,11 @@ jobs:
         with:
           path: lettr-skills
 
-      - name: Checkout lettr-docs (source of truth)
+      - name: Checkout docs (source of truth, public repo → no token)
         uses: actions/checkout@v4
         with:
-          repository: lettr-com/lettr-docs
+          repository: lettr-com/docs
           path: lettr-docs
-          token: ${{ secrets.DOCS_REPO_TOKEN }}
 
       - name: Fetch latest OpenAPI spec
         working-directory: lettr-docs
