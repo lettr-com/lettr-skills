@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "sync": "node scripts/sync.mjs",
-    "sync:check": "node scripts/sync.mjs --check"
+    "sync:check": "node scripts/sync.mjs --check",
+    "verify": "node scripts/verify.mjs"
   },
   "license": "MIT"
 }
