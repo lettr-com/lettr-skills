@@ -3,7 +3,7 @@
 
 # Rust — Getting Started
 
-> Get started sending emails with the Lettr Rust SDK
+> Get started sending transactional emails from Rust with the official Lettr SDK, a type-safe, async-first Tokio interface.
 
 Send transactional emails from your Rust applications using the official Lettr Rust SDK. The SDK provides a type-safe, async-first interface for the Lettr API with full Tokio support and zero-copy deserialization.
 

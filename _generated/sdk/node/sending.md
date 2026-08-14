@@ -3,7 +3,7 @@
 
 # Node.js — Sending Emails
 
-> Send HTML, text, and template emails with the Lettr Node.js SDK
+> Send HTML, plain text, and template transactional emails with the Lettr Node.js SDK using the result-based emails resource
 
 The `client.emails` resource sends transactional email. Every call returns a `Result` — destructure `{ data, error }` and handle `error` before using `data`.
 

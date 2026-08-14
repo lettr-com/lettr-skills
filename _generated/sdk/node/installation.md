@@ -3,7 +3,7 @@
 
 # Node.js — Installation
 
-> Install and configure the Lettr Node.js SDK
+> Install the type-safe lettr package for Node.js and TypeScript, create a client, and handle the result-based data and error pattern
 
 The official `lettr` package is a type-safe API client for Node.js and TypeScript. It covers sending, templates, domains, webhooks, audience, and campaigns — with no thrown exceptions: every method returns a `Result` you destructure into `data` and `error`.
 

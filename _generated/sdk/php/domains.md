@@ -3,7 +3,7 @@
 
 # PHP — Managing Domains
 
-> List, add, verify, and delete sending domains with the Lettr PHP SDK
+> List, add, verify, and delete sending domains and check DKIM and CNAME status with the domains service in the Lettr PHP SDK.
 
 Before you can send email, the sending domain must be verified in Lettr. The `$lettr->domains()` service lets you manage domains programmatically — useful for multi-tenant apps that onboard customer domains, or for automating DNS verification checks.
 

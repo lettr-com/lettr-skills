@@ -3,7 +3,7 @@
 
 # Laravel — Audience
 
-> Manage lists, contacts, topics, properties, and segments from Laravel
+> Manage contact lists, contacts, subscription topics, custom properties, and dynamic segments from Laravel with the Lettr audience API
 
 The audience API manages everything campaigns send to: contact **lists**, the **contacts** themselves, subscription **topics**, custom **properties**, and dynamic **segments**. Everything is reached through `Lettr::audience()`:
 
@@ -89,33 +89,103 @@ Lettr::audience()->contacts()->create(new CreateAudienceContactData(
 ));
 ```
 
-### Bulk operations & membership
+### Bulk create contacts
+
+`bulkCreate()` takes up to 1000 contacts per request in one of two shapes. `forEmails()` builds the flat shape, where every address shares the batch-wide lists, properties and topics:
 
 ```php
 use Lettr\Dto\Audience\BulkCreateAudienceContactsData;
-use Lettr\Dto\Audience\BulkAttachContactsToListsData;
-use Lettr\Dto\Audience\BulkDetachContactsFromListsData;
 
-// Bulk create (up to 1000 emails)
-$result = Lettr::audience()->contacts()->bulkCreate(new BulkCreateAudienceContactsData(
-    emails: ['a@example.com', 'b@example.com'],
-    listId: 'list-uuid',
-));
+$result = Lettr::audience()->contacts()->bulkCreate(
+    BulkCreateAudienceContactsData::forEmails(
+        emails: ['a@example.com', 'b@example.com'],
+        listIds: ['list-uuid'],
+        properties: ['source' => 'spring-campaign'],
+    )
+);
+```
+
+`forContacts()` addresses each contact individually. Row-level `listIds` and `topics` are applied **on top of** the batch-wide ones, and a row's `properties` key overrides the batch-wide value for that key:
+
+```php
+use Lettr\Dto\Audience\AudienceTopicSubscription;
+use Lettr\Dto\Audience\BulkAudienceContactRow;
+use Lettr\Dto\Audience\BulkCreateAudienceContactsData;
+
+$result = Lettr::audience()->contacts()->bulkCreate(
+    BulkCreateAudienceContactsData::forContacts(
+        contacts: [
+            new BulkAudienceContactRow(
+                email: 'cara@example.com',
+                properties: ['plan' => 'pro'],
+                listIds: ['vip-list-uuid'],
+                topics: [AudienceTopicSubscription::optIn('newsletter-uuid')],
+            ),
+            new BulkAudienceContactRow(
+                email: 'dan@example.com',
+                topics: [AudienceTopicSubscription::optOut('promos-uuid')],
+            ),
+        ],
+        listIds: ['everyone-list-uuid'],
+        properties: ['source' => 'spring-campaign'],
+        updateExisting: false,
+    )
+);
+```
+
+> **Tip:**
+> `AudienceTopicSubscription::optOut()` suppresses a topic for that contact in the same request. Useful when a topic's default subscription is opt-out, which auto-subscribes newly created contacts — a row-level opt-out cancels that instead of needing a second call. A row-level opt-out also beats a batch-level opt-in.
+
+`updateExisting` defaults to `false`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an opt-out drop an existing subscription.
+
+#### Handling the result
+
+> **Warning:**
+> A call that doesn't throw does **not** mean every row landed. Rows that fail validation are skipped and reported in `errors` while the rest of the batch commits — the API still returns `201`. Always check `hasErrors()`.
+
+```php
 $result->created;        // int
 $result->alreadyExisted; // int
+$result->updated;        // int — existing contacts this request changed
+
+if ($result->hasErrors()) {
+    foreach ($result->errors as $error) {
+        // index is zero-based into the rows you submitted
+        Log::warning("Bulk import row {$error->index} ({$error->email}) skipped: {$error->error}");
+    }
+}
+
+// Every contact that exists after the request, in submission order
+$ids = $result->contactIds();
+$caraId = $result->idFor('cara@example.com'); // case-insensitive lookup
+```
+
+`$error->errorCode` is a `Lettr\Enums\BulkAudienceContactErrorCode` (or a plain string for a code added server-side): `missing_email`, `invalid_email`, `invalid_property_value`, `unknown_property_key`, `unknown_list`, `unknown_topic`, or `invalid_topic_subscription`.
+
+> **Note:**
+> `alreadyExisted` and `updated` overlap by design — "was the address already in the audience?" versus "did this request change the contact?" — so they don't sum to the row count. A contact that already existed and got attached to a list is counted in both.
+
+### Membership
+
+`$result->contactIds()` from a `bulkCreate()` feeds straight into the bulk membership calls, so no id lookup is needed in between:
+
+```php
+use Lettr\Dto\Audience\BulkAttachContactsToListsData;
+use Lettr\Dto\Audience\BulkDetachContactsFromListsData;
+use Lettr\Dto\Audience\BulkAudienceContactTopicsData;
 
 // Attach / detach a single contact to a list (true if newly attached)
 $attached = Lettr::audience()->contacts()->attachList('contact-uuid', 'list-uuid');
 Lettr::audience()->contacts()->detachList('contact-uuid', 'list-uuid');
 
 // Bulk attach / detach (up to 1000 contacts × 50 lists)
-$result = Lettr::audience()->contacts()->bulkAttachLists(new BulkAttachContactsToListsData(
+$attach = Lettr::audience()->contacts()->bulkAttachLists(new BulkAttachContactsToListsData(
     contactIds: ['contact-1', 'contact-2'],
     listIds: ['list-1', 'list-2'],
 ));
-$result->attached;        // int
-$result->alreadyAttached; // int
-$result->totalPairs;      // int
+$attach->attached;        // int
+$attach->alreadyAttached; // int
+$attach->totalPairs;      // int
 
 Lettr::audience()->contacts()->bulkDetachLists(new BulkDetachContactsFromListsData(
     contactIds: ['contact-1'],
@@ -125,7 +195,25 @@ Lettr::audience()->contacts()->bulkDetachLists(new BulkDetachContactsFromListsDa
 // Subscribe / unsubscribe a contact to a topic (true if newly subscribed)
 Lettr::audience()->contacts()->subscribeTopic('contact-uuid', 'topic-uuid');
 Lettr::audience()->contacts()->unsubscribeTopic('contact-uuid', 'topic-uuid');
+
+// Bulk subscribe / unsubscribe (up to 1000 contacts × 50 topics)
+$sub = Lettr::audience()->contacts()->bulkSubscribeTopics(new BulkAudienceContactTopicsData(
+    contactIds: ['contact-1', 'contact-2'],
+    topicIds: ['topic-1'],
+));
+$sub->subscribed;        // int
+$sub->alreadySubscribed; // int
+$sub->totalPairs;        // int
+
+$unsub = Lettr::audience()->contacts()->bulkUnsubscribeTopics(new BulkAudienceContactTopicsData(
+    contactIds: ['contact-1'],
+    topicIds: ['topic-1'],
+));
+$unsub->unsubscribed; // int
+$unsub->totalPairs;   // int
 ```
+
+Every bulk membership call processes the full cartesian product of its ids. Unsubscribing ignores pairs that don't exist, so `unsubscribed` can be lower than `totalPairs`.
 
 ## Lists
 

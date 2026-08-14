@@ -3,7 +3,7 @@
 
 # PHP — Using Templates
 
-> Manage and send Lettr templates with the PHP SDK
+> Send Lettr templates with substitution data, pin template versions, retrieve merge tags, and manage templates via the API in the PHP SDK.
 
 Lettr templates let you manage email designs in the Lettr dashboard while your application provides the dynamic data. This separation means designers can update email layouts without touching application code, and developers can change data without worrying about design.
 

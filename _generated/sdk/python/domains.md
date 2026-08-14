@@ -3,7 +3,7 @@
 
 # Python — Managing Domains
 
-> List, add, verify, and delete sending domains with the Python SDK
+> List, add, verify, and delete sending domains and check DKIM and CNAME status with the client.domains resource in the Lettr Python SDK.
 
 The `client.domains` resource manages your sending domains — useful for multi-tenant apps onboarding customer domains, or for automating DNS verification.
 

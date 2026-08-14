@@ -5,7 +5,7 @@
 
 Base URL `https://app.lettr.com/api` · Auth `Authorization: Bearer $LETTR_API_KEY`
 
-Condensed from the OpenAPI spec — 38 paths. Request-body fields in **bold** are required. For full request/response schemas read the bundled [`openapi.json`](./openapi.json).
+Condensed from the OpenAPI spec — 39 paths. Request-body fields in **bold** are required. For full request/response schemas read the bundled [`openapi.json`](./openapi.json).
 
 ## Emails
 
@@ -111,16 +111,22 @@ op: `destroyAudienceList` · errors: 401, 403, 404, 500
 op: `listAudienceContacts` · errors: 401, 403, 422, 500
 
 ### `POST /audience/contacts` — Create a contact
-op: `createAudienceContact` · body: StoreAudienceContactRequest { **email**, list_id, properties, double_opt_in } · errors: 401, 403, 404, 422, 500, 502
+op: `createAudienceContact` · body: StoreAudienceContactRequest { **email**, list_id, properties, double_opt_in } · errors: 401, 403, 404, 409, 422, 500, 502
 
 ### `POST /audience/contacts/bulk` — Bulk create contacts
-op: `bulkCreateAudienceContacts` · body: BulkStoreAudienceContactsRequest { **emails**, list_id, properties } · errors: 401, 403, 422, 500
+op: `bulkCreateAudienceContacts` · body: BulkStoreAudienceContactsRequest { emails, list_id, properties, contacts, list_ids, topics, update_existing } · errors: 401, 403, 422, 500
 
 ### `POST /audience/contacts/lists/bulk` — Bulk attach contacts to lists
 op: `bulkAttachContactsToLists` · body: BulkAudienceContactListsRequest { **contact_ids**, **list_ids** } · errors: 401, 403, 422, 500
 
 ### `DELETE /audience/contacts/lists/bulk` — Bulk detach contacts from lists
 op: `bulkDetachContactsFromLists` · body: BulkAudienceContactListsRequest { **contact_ids**, **list_ids** } · errors: 401, 403, 422, 500
+
+### `POST /audience/contacts/topics/bulk` — Bulk subscribe contacts to topics
+op: `bulkSubscribeContactsToTopics` · body: BulkAudienceContactTopicsRequest { **contact_ids**, **topic_ids** } · errors: 401, 403, 422, 500
+
+### `DELETE /audience/contacts/topics/bulk` — Bulk unsubscribe contacts from topics
+op: `bulkUnsubscribeContactsFromTopics` · body: BulkAudienceContactTopicsRequest { **contact_ids**, **topic_ids** } · errors: 401, 403, 422, 500
 
 ### `GET /audience/contacts/{contactId}` — Show a contact
 op: `showAudienceContact` · errors: 401, 403, 404, 500

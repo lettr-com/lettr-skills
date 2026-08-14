@@ -3,7 +3,7 @@
 
 # Python — Getting Started
 
-> Send transactional emails from Python using the Lettr SDK
+> Send transactional emails from Python with the type-safe lettr SDK, featuring sync and async clients, type hints, and typed error handling.
 
 Send transactional emails from your Python applications using the official Lettr Python SDK. The SDK provides a type-safe, intuitive interface for the Lettr API with full async support and comprehensive error handling.
 

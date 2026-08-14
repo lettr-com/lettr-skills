@@ -3,7 +3,7 @@
 
 # PHP — Managing Webhooks
 
-> List, create, update, and delete webhooks with the Lettr PHP SDK
+> Manage webhook endpoints for delivery, open, click, bounce, and spam events with the webhooks service in the Lettr PHP SDK.
 
 Webhooks deliver real-time notifications when emails are delivered, opened, clicked, bounced, or marked as spam. The `$lettr->webhooks()` service manages your webhook endpoints programmatically.
 

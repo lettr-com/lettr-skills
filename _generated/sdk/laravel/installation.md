@@ -3,7 +3,7 @@
 
 # Laravel — Installation
 
-> Install and configure Lettr for Laravel
+> Install the lettr/lettr-laravel Composer package and configure it to send emails through Lettr, via guided or manual setup
 
 This page covers installing the `lettr/lettr-laravel` Composer package and configuring it to send emails through Lettr. If you haven't already, start with the [Introduction](https://docs.lettr.com/quickstart/laravel/introduction) for a quick overview of what the SDK provides.
 

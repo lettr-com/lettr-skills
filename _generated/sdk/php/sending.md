@@ -3,7 +3,7 @@
 
 # PHP — Sending Emails
 
-> Different ways to send emails with the Lettr PHP SDK
+> Send emails with the Lettr PHP SDK using quick send methods, the fluent email builder, templates with substitution data, and attachments.
 
 The Lettr PHP SDK offers multiple ways to send emails, from quick one-liners to the full-featured email builder. This page covers every approach so you can choose the one that fits your use case.
 

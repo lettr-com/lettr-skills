@@ -3,7 +3,7 @@
 
 # Go — Advanced
 
-> Advanced features and patterns for the Lettr Go SDK
+> Advanced Lettr Go SDK usage including CC and BCC, reply-to, attachments, templates, batch sending, and error handling.
 
 This guide covers advanced features of the Lettr Go SDK including attachments, templates, batch sending, error handling, and best practices for production applications.
 

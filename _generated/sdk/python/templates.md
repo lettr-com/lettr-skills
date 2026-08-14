@@ -3,7 +3,7 @@
 
 # Python — Templates
 
-> Manage Lettr templates with the Python SDK
+> List, get, create, update, and delete Lettr-managed templates and fetch rendered HTML with the client.templates resource in the Python SDK.
 
 The `client.templates` resource manages Lettr-managed templates. To *send* a template, pass `template_slug` to `client.emails.send()` — see [Sending Emails](https://docs.lettr.com/quickstart/python/quickstart#sending-emails).
 

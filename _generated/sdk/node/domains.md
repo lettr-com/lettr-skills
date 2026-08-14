@@ -3,7 +3,7 @@
 
 # Node.js — Managing Domains
 
-> List, add, verify, and delete sending domains with the Node.js SDK
+> List, add, verify, and delete Lettr sending domains with the Node.js SDK, including DKIM and CNAME status for multi-tenant apps
 
 The `client.domains` resource manages your sending domains — useful for multi-tenant apps onboarding customer domains, or for automating DNS verification.
 

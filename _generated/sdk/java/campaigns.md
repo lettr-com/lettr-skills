@@ -3,7 +3,7 @@
 
 # Java — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Java SDK
+> List, inspect, send now, schedule, and unschedule email campaigns with the Lettr Java SDK Campaigns service.
 
 The `lettr.campaigns()` service gives you read access to campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **authored in the Lettr app**; the API does not expose create, update, or delete.
 

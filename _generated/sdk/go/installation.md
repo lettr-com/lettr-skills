@@ -3,7 +3,7 @@
 
 # Go — Getting Started
 
-> Get started sending emails with the Lettr Go SDK
+> Get started sending transactional emails from Go with the official Lettr SDK, featuring type-safe calls and context support.
 
 Send transactional emails from your Go applications using the official Lettr Go SDK. The SDK provides a type-safe, idiomatic Go interface for the Lettr API with full context support and structured error handling.
 

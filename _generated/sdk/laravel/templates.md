@@ -3,7 +3,7 @@
 
 # Laravel — Templates
 
-> Use Lettr templates with merge tags in Laravel
+> Send Lettr templates with merge tags from Laravel, plus versioning, projects, and syncing templates with your local codebase
 
 Lettr templates let you manage email designs in the Lettr dashboard while your application provides the dynamic data. This separation means designers can update email layouts without touching application code, and developers can change data without worrying about design.
 

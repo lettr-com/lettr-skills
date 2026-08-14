@@ -3,7 +3,7 @@
 
 # Python — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Python SDK
+> List, inspect, send, schedule, and unschedule campaigns and read engagement stats with the client.campaigns resource in the Lettr Python SDK.
 
 The `client.campaigns` resource gives you read access to campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **authored in the Lettr app**; the API does not expose create, update, or delete.
 

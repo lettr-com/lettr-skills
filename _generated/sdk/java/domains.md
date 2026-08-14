@@ -3,7 +3,7 @@
 
 # Java — Managing Domains
 
-> List, add, verify, and delete sending domains with the Java SDK
+> List, add, verify, and delete sending domains with the Lettr Java SDK, ideal for multi-tenant apps and DNS automation.
 
 The `lettr.domains()` service manages your sending domains — useful for multi-tenant apps onboarding customer domains, or for automating DNS verification.
 
