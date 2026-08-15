@@ -243,25 +243,29 @@ except Exception as e:
 - Message: "Too many requests"
 - Solution: Implement exponential backoff retry logic
 
-## Async Support
+## Using the SDK from async code
 
-The SDK provides full async support for non-blocking operations:
+The Python SDK is **synchronous** — there is no async client. To call it from an
+async application without blocking the event loop, run each call in a worker
+thread with `asyncio.to_thread`:
 
 ```python
 
-async def send_emails():
-    client = lettr.AsyncLettr(os.environ["LETTR_API_KEY"])
+client = lettr.Lettr(os.environ["LETTR_API_KEY"])
 
-    # Send multiple emails concurrently
-    tasks = []
-    for recipient in ["user1@example.com", "user2@example.com", "user3@example.com"]:
-        task = client.emails.send(
+async def send_emails():
+    recipients = ["user1@example.com", "user2@example.com", "user3@example.com"]
+
+    tasks = [
+        asyncio.to_thread(
+            client.emails.send,
             from_email="notifications@yourdomain.com",
             to=[recipient],
             subject="Batch notification",
             html="<p>This is a batch email.</p>",
         )
-        tasks.append(task)
+        for recipient in recipients
+    ]
 
     responses = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -274,18 +278,22 @@ async def send_emails():
 asyncio.run(send_emails())
 ```
 
-### With Semaphore for Rate Limiting
+### Limiting concurrency
 
-Limit concurrent requests using asyncio.Semaphore:
+Each `to_thread` call occupies a thread, and the API allows 3 requests/second per
+team, so bound the concurrency with a semaphore:
 
 ```python
 
-async def send_batch(client, recipients, max_concurrent=10):
+client = lettr.Lettr(os.environ["LETTR_API_KEY"])
+
+async def send_batch(recipients, max_concurrent=5):
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def send_with_limit(recipient):
         async with semaphore:
-            return await client.emails.send(
+            return await asyncio.to_thread(
+                client.emails.send,
                 from_email="notifications@yourdomain.com",
                 to=[recipient],
                 subject="Batch email",
@@ -301,16 +309,11 @@ async def send_batch(client, recipients, max_concurrent=10):
         else:
             print(f"Sent to {recipients[i]}: {response.request_id}")
 
-async def main():
-    client = lettr.AsyncLettr(os.environ["LETTR_API_KEY"])
-    recipients = ["user1@example.com", "user2@example.com", "user3@example.com"]
-    await send_batch(client, recipients, max_concurrent=5)
-
-asyncio.run(main())
+asyncio.run(send_batch(["user1@example.com", "user2@example.com"]))
 ```
 
 > **Tip:**
-> For large batches, consider using a task queue like Celery or RQ to manage concurrent requests and handle failures gracefully.
+> Sending the same content to many people does not need concurrency at all — put up to 50 addresses in a single `to` list and Lettr delivers a separate copy to each. See [Batch Sending](https://docs.lettr.com/learn/sending/batch-sending). For large volumes, a task queue like Celery or RQ manages retries and failures better than raw threads.
 
 ## Django Integration
 
@@ -545,7 +548,7 @@ If you're hitting rate limits:
 **Async/await errors**
 If you encounter async-related errors:
 
-    - Use `AsyncLettr` for async code, not `Lettr`
-    - Ensure you're using `await` with async methods
+    - `AttributeError: module 'lettr' has no attribute 'AsyncLettr'` — there is no async client. Use `lettr.Lettr` and wrap calls in `asyncio.to_thread`
+    - `object ... can't be used in 'await' expression` — you are awaiting a sync method directly; await `asyncio.to_thread(client.emails.send, ...)` instead
+    - Blocking event loop / slow responses under load — a bare `client.emails.send(...)` inside a coroutine blocks the loop; move it to a thread
     - Run async functions with `asyncio.run()` at the top level
-    - Check that your async runtime is properly configured

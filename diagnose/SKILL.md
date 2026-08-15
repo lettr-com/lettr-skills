@@ -14,10 +14,9 @@ Pick the row that matches what the user is reporting.
 | Symptom | What to fetch | Reference |
 |---|---|---|
 | "I sent an email, the user never got it" | Email events filtered by recipient (last hour) | [`bounce-classes.md`](./references/bounce-classes.md), [`webhook-events.md`](./references/webhook-events.md) |
-| "I get 422 / domain rejected when sending" | Domain list, then details for the failing one | [`dns-failures.md`](./references/dns-failures.md) |
+| "I get 400 `unconfigured_domain` / domain rejected when sending" | Domain list, then details for the failing one | [`dns-failures.md`](./references/dns-failures.md) |
 | "I added a domain but it stays pending" | Trigger verification, then re-fetch the domain | [`dns-failures.md`](./references/dns-failures.md) |
 | "Webhook isn't firing for my events" | Webhook list, then details for the suspect one | [`webhook-events.md`](./references/webhook-events.md) |
-| "Webhook update keeps failing validation (422)" | Webhook details, to inspect current event types | [`webhook-events.md`](./references/webhook-events.md) — see naming gotcha |
 | "I'm getting 429 / quota exceeded" | Validate API key, then read the response payload | [`quota-rate-limits.md`](./references/quota-rate-limits.md) |
 | "Open / click tracking shows nothing" | Event detail for one known send | [`webhook-events.md`](./references/webhook-events.md) — engagement events |
 

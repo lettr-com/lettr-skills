@@ -1,23 +1,22 @@
 # Webhook event types
 
-Use this when reading webhook configuration, or when a webhook update keeps returning 422.
+Use this when reading webhook configuration, or when mapping between the names you register and the names that arrive in the payload.
 
-## Two naming forms
+## Event names
 
-Lettr validates event names differently on create vs update:
+The canonical form is `<category>.<event>` — `message.delivery`, `engagement.click`. **Create and update behave identically**: both normalise whatever you send to the canonical form, and both accept all three of
 
-| Operation | Naming form | Example |
-|---|---|---|
-| Create webhook (`POST /api/webhooks`) | **Short** — no namespace | `delivery`, `bounce` |
-| Update webhook (`PUT /api/webhooks/{id}`) | **Namespaced** — `<category>.<event>` | `message.delivery`, `message.bounce` |
+- fully-prefixed — `message.delivery` ← write this
+- short — `delivery`
+- the legacy misspelled `engagament.*` prefix (missing an `e`) — accepted only for clients that subscribed before the rename
 
-Sending the wrong form returns 422. If the user reports "update keeps failing 422", check whether they're sending short names through the update endpoint — convert them using the table below.
+There is no create/update asymmetry and no 422 from picking the "wrong" form. Always write `engagement.*`; the misspelling is a backwards-compatibility shim, not the spelling — the SDK enums (`WebhookEventType`) only contain the correct one, so `WebhookEventType::from('engagament.click')` throws.
 
-> **API spelling quirk**: the engagement category is literally spelled `engagament` (missing `e`) in API validation. This is not a typo in this doc — webhook updates only accept `engagament.click`, `engagament.open`, etc. The Laravel SDK enum reflects this spelling.
+> **Registration names ≠ payload names.** What you register is namespaced; what arrives in the webhook body is the **short** name, nested under `msys.<category>.type`. See the `webhooks` skill for the payload shape.
 
 ## Complete list (22 events)
 
-| Short name (create) | Namespaced name (update) | Meaning |
+| Short name (payload & event filter) | Canonical name (registration) | Meaning |
 |---|---|---|
 | `injection` | `message.injection` | Accepted into the send queue |
 | `delivery` | `message.delivery` | Receiving mail server accepted the message |
@@ -26,12 +25,12 @@ Sending the wrong form returns 422. If the user reports "update keeps failing 42
 | `out_of_band` | `message.out_of_band` | Asynchronous bounce after earlier successful delivery |
 | `spam_complaint` | `message.spam_complaint` | Recipient marked as spam |
 | `policy_rejection` | `message.policy_rejection` | Rejected pre-send (suppression list, invalid recipient) |
-| `click` | `engagament.click` | Tracked link clicked |
-| `open` | `engagament.open` | Tracking pixel loaded |
-| `initial_open` | `engagament.initial_open` | First open for a recipient |
-| `amp_click` | `engagament.amp_click` | Click in AMP content |
-| `amp_open` | `engagament.amp_open` | Open in AMP-rendered client |
-| `amp_initial_open` | `engagament.amp_initial_open` | First AMP open |
+| `click` | `engagement.click` | Tracked link clicked |
+| `open` | `engagement.open` | Tracking pixel loaded |
+| `initial_open` | `engagement.initial_open` | First open for a recipient |
+| `amp_click` | `engagement.amp_click` | Click in AMP content |
+| `amp_open` | `engagement.amp_open` | Open in AMP-rendered client |
+| `amp_initial_open` | `engagement.amp_initial_open` | First AMP open |
 | `generation_failure` | `generation.generation_failure` | Could not render the message |
 | `generation_rejection` | `generation.generation_rejection` | Render succeeded but rejected pre-injection |
 | `list_unsubscribe` | `unsubscribe.list_unsubscribe` | One-click via `List-Unsubscribe` header |

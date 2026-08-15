@@ -191,9 +191,10 @@ Metadata is returned in webhook events and can be used to correlate emails with 
 
 ## Error Handling
 
-The SDK provides structured error responses for different error scenarios:
+Every error the API returns is a single `*lettr.Error` carrying `StatusCode`, `Message`, `ErrorCode` and (for 422) field-level `Errors`. There are no per-status error types — unwrap with the standard library's `errors.As`, then discriminate with the `Is*` helpers or on the status/code:
 
 ```go
+
 resp, err := client.Emails.Send(ctx, &lettr.SendEmailRequest{
     From:    "invalid@unverified-domain.com",
     To:      []string{"user@example.com"},
@@ -202,23 +203,32 @@ resp, err := client.Emails.Send(ctx, &lettr.SendEmailRequest{
 })
 
 if err != nil {
-    switch e := err.(type) {
-    case *lettr.ValidationError:
-        // 422 validation errors
-        log.Printf("Validation failed: %v", e.Message)
-        for field, messages := range e.Errors {
-            log.Printf("  %s: %v", field, messages)
+    // Every API error is a *lettr.Error. Discriminate on the helpers or on
+    // StatusCode/ErrorCode — there are no per-status error types.
+    var e *lettr.Error
+    if errors.As(err, &e) {
+        switch {
+        case lettr.IsValidationError(err):
+            // 422 validation errors
+            log.Printf("Validation failed: %v", e.Message)
+            for field, messages := range e.Errors {
+                log.Printf("  %s: %v", field, messages)
+            }
+        case lettr.IsUnauthorized(err):
+            // 401 authentication errors
+            log.Printf("Authentication failed: %v", e.Message)
+        case e.StatusCode == 429:
+            // Rate limit vs quota is carried by ErrorCode:
+            // rate_limit_exceeded | quota_exceeded | daily_quota_exceeded
+            log.Printf("Throttled (%s): %v", e.ErrorCode, e.Message)
+        case e.ErrorCode == "unconfigured_domain":
+            // 400 — the sender domain is not verified. This is NOT a 422.
+            log.Printf("Sending domain not verified: %v", e.Message)
+        default:
+            // Other API errors (500, 503, etc.)
+            log.Printf("API error %d: %v", e.StatusCode, e.Message)
         }
-    case *lettr.AuthError:
-        // 401 authentication errors
-        log.Printf("Authentication failed: %v", e.Message)
-    case *lettr.RateLimitError:
-        // 429 rate limit errors
-        log.Printf("Rate limit exceeded: %v", e.Message)
-    case *lettr.APIError:
-        // Other API errors (500, 503, etc.)
-        log.Printf("API error: %v", e.Message)
-    default:
+    } else {
         // Network or other errors
         log.Printf("Request failed: %v", err)
     }

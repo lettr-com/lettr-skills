@@ -120,26 +120,34 @@ client = lettr.Lettr(os.environ["LETTR_API_KEY"])
 > **Tip:**
 > Add `.env` to your `.gitignore` file to prevent accidentally committing your API key to version control.
 
-### Custom HTTP Client
+### Timeouts and base URL
 
-Use a custom httpx client with custom timeouts:
+The client takes keyword-only `timeout` (seconds, default 30) and `base_url` arguments:
 
 ```python
 
-http_client = httpx.Client(timeout=30.0)
-client = lettr.Lettr("your-api-key", http_client=http_client)
+client = lettr.Lettr("your-api-key", timeout=10.0)
 ```
 
-### Async Client
+It is also a context manager, which closes the underlying connection pool on exit:
 
-Use the async client for non-blocking operations:
+```python
+with lettr.Lettr("your-api-key") as client:
+    client.emails.send(...)
+```
+
+### Calling the client from async code
+
+The SDK is **synchronous**. To use it from an async application without blocking the
+event loop, run the call in a worker thread with `asyncio.to_thread`:
 
 ```python
 
-async def main():
-    client = lettr.AsyncLettr("your-api-key")
+client = lettr.Lettr("your-api-key")
 
-    response = await client.emails.send(
+async def main():
+    response = await asyncio.to_thread(
+        client.emails.send,
         from_email="sender@yourdomain.com",
         to=["recipient@example.com"],
         subject="Hello",

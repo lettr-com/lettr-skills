@@ -13,6 +13,18 @@ Two halves: **register** a webhook endpoint with Lettr, and **handle** the event
 - **Wire contract:** [`../_generated/api/index.md`](../_generated/api/index.md), Webhooks section — note `auth_type` and `events_mode` are required on create.
 - **Payload format, event types, retries:** the live docs at `https://docs.lettr.com/learn/webhooks` (event-types, handling, retries).
 
+⚠️ **Payload shape — don't infer it from the registration names.** Events arrive as a JSON **array**, each item wrapped by category:
+
+```js
+for (const event of req.body) {           // array, not a single object
+  const category = Object.keys(event.msys)[0];   // message_event | unsubscribe_event | relay_event | …
+  const data = event.msys[category];
+  if (data.type === 'delivery') { … }     // SHORT name, not the namespaced one you registered with
+}
+```
+
+The `type` field carries the **short** name (`delivery`, `bounce`, `open`), never the `<category>.<event>` form used at registration. Fields sit directly on `data` (`rcpt_to`, `transmission_id`, `bounce_class`), not under a `.data` key.
+
 ## 2. Register the endpoint
 
 Create with `name`, `url` (HTTPS), `auth_type`, and `events_mode`:

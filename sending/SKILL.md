@@ -25,18 +25,25 @@ Never invent method names from memory — the generated reference is the source 
 | Content managed in Lettr (merge tags) | template send — pair with the `templates` skill |
 | Same content to many recipients | put up to 50 addresses in `to` (one API call delivers a separate copy to each); `substitution_data` applies to the whole batch, not per-recipient |
 | More than 50 recipients | chunk into batches of ≤50 and send a separate call per batch — sequentially or in parallel, staying under 3 req/s. There is no bulk endpoint; looping batches is the intended pattern |
-| Must not double-send on retry | set the `idempotency_key` field on the send call (derive it from the business event, e.g. `order-confirmation-{orderId}`) |
+| Must not double-send on retry | **Lettr has no server-side idempotency.** Guard in your own code: check a DB flag or cache key derived from the business event (e.g. `order-confirmation-{orderId}`) *before* sending, and record the returned `request_id` after. There is no `idempotency_key` field — passing one is silently discarded, not rejected. Put the key in `metadata` if you want it traceable later |
 | Send later | `POST /emails/scheduled` — keep the returned `transmissionId` to cancel |
 
 ## 3. Preconditions that cause most failures
 
-- **`from` must be on a verified sending domain.** Unverified → `422`. If the user hasn't verified one, route to `install` (domain step) before sending.
+- **`from` must be on a verified sending domain.** Unverified → **`400`** with `error_code: unconfigured_domain` (not `422` — see error handling below). If the user hasn't verified one, route to `install` (domain step) before sending.
 - **50 recipients max per call, counted across `to` + `cc` + `bcc` combined** (not 50 each). More than that → batch (see the table above).
-- **Transactional vs marketing.** `transactional` bypasses unsubscribe suppression — correct for password resets/receipts, wrong for anything a user can opt out of.
+- **`transactional` defaults to `true` — you must opt *out*.** It bypasses unsubscribe suppression, which is correct for password resets and receipts. For anything a user can opt out of, explicitly set `options.transactional: false`; leaving it unset sends to unsubscribed contacts.
 
 ## 4. Wrap the send in error handling
 
-The SDKs throw typed exceptions — map them, don't swallow them. From the generated reference: `ValidationException` (422, usually unverified domain or bad address), `UnauthorizedException` (401, bad key), `QuotaExceededException` / `RateLimitException` (429 — distinct: quota = plan limit, rate = 3 req/s/team, retry after the given delay). Production sends must catch these.
+The SDKs surface typed errors — map them, don't swallow them. Read the generated reference for this language's exact names and shapes; they differ a lot (PHP/Java throw exceptions, Go returns a single `lettr.Error` plus `Is*` helpers, Rust returns an `Error` enum, Node returns a `{ type, error_code }` result). The cases to handle:
+
+- **401** — bad or revoked key.
+- **422** — a malformed request: missing field, bad address format.
+- **429** — two distinct causes, told apart by `error_code`: `rate_limit_exceeded` (3 req/s per team — back off per `Retry-After`) vs `quota_exceeded` / `daily_quota_exceeded` (plan limit — waiting won't help until the window resets).
+- **400 `unconfigured_domain`** — the `from` domain isn't verified. ⚠️ This is the most common first-send failure and it is **not** a validation error: it will not be caught by a `ValidationException`/422 branch. Match on the status or `error_code`, not on the validation type.
+
+Production sends must handle all four.
 
 ## 5. Offer to verify the send actually happened
 
