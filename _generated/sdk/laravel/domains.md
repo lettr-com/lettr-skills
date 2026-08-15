@@ -3,7 +3,7 @@
 
 # Laravel — Managing Domains
 
-> List, add, verify, and delete sending domains from Laravel
+> List, add, verify, and delete Lettr sending domains from Laravel, with DKIM and CNAME status checks for multi-tenant apps
 
 Manage your sending domains through the `Lettr` facade. This is useful for multi-tenant apps that onboard customer domains, or for automating DNS verification checks from an Artisan command or job.
 

@@ -3,7 +3,7 @@
 
 # PHP — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Lettr PHP SDK
+> List, inspect, send, schedule, and unschedule email campaigns with engagement stats using the campaigns service in the Lettr PHP SDK.
 
 The `$lettr->campaigns()` service gives you read access to your campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **created and edited in the Lettr dashboard**; the API does not expose create, update, or delete.
 

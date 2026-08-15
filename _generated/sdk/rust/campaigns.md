@@ -3,7 +3,7 @@
 
 # Rust — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Rust SDK
+> List, inspect, send, schedule, and unschedule email campaigns with the Lettr Rust SDK, including engagement stats and events.
 
 The `client.campaigns` service gives you read access to campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **authored in the Lettr app**; the API does not expose create, update, or delete.
 

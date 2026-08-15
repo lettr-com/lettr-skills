@@ -3,7 +3,7 @@
 
 # Rust — Templates
 
-> Manage Lettr templates with the Rust SDK
+> List, get, create, and update Lettr-managed email templates with the Rust SDK, using either HTML or the TOPOL.io editor JSON format.
 
 The `client.templates` service manages Lettr-managed templates. To *send* a template, set the template on `CreateEmailOptions` — see [Sending Emails](https://docs.lettr.com/quickstart/rust/quickstart#sending-emails).
 

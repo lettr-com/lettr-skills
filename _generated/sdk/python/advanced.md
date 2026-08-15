@@ -3,7 +3,7 @@
 
 # Python — Advanced
 
-> Advanced email features, error handling, async support, and Django integration
+> Advanced Lettr Python SDK features: multiple recipients, reply-to, typed error handling, the async client, and Django integration patterns.
 
 > **Note:**
 > This guide covers advanced Python SDK features. If you're new to the SDK, start with the [Python Quickstart](https://docs.lettr.com/quickstart/python/quickstart).

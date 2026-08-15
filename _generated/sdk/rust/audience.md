@@ -3,7 +3,7 @@
 
 # Rust — Audience
 
-> Manage lists, contacts, topics, properties, and segments with the Rust SDK
+> Manage audience contacts, lists, subscription topics, custom properties, and dynamic segments with the Lettr Rust SDK.
 
 The `client.audience` service manages everything campaigns send to. Each kind is a sub-service:
 
@@ -76,18 +76,80 @@ let options = CreateAudienceContactOptions::new("jane@example.com")
 client.audience.contacts.create(options).await?;
 ```
 
-### Bulk operations & membership
+### Bulk create contacts
+
+`bulk_create()` takes up to 1000 contacts per request in one of two shapes. `BulkCreateAudienceContactsOptions::new()` takes a flat list of addresses that all share the batch-wide lists, properties and topics:
 
 ```rust
-use lettr::audience::contacts::{BulkCreateAudienceContactsOptions, BulkContactListMembershipOptions};
+use lettr::audience::contacts::BulkCreateAudienceContactsOptions;
 
-// Bulk create
 client.audience.contacts.bulk_create(
     BulkCreateAudienceContactsOptions::new(vec![
         "a@example.com".to_string(),
         "b@example.com".to_string(),
-    ]).with_list_id("list-uuid"),
+    ])
+    .with_list_ids(vec!["list-uuid".to_string()]),
 ).await?;
+```
+
+`::for_contacts()` addresses each contact individually. Row-level list ids and topics are applied **on top of** the batch-wide ones, and a row's property key overrides the batch-wide value for that key:
+
+```rust
+use std::collections::HashMap;
+use lettr::audience::contacts::{
+    AudienceTopicSubscription, BulkAudienceContactRow, BulkCreateAudienceContactsOptions,
+};
+
+let result = client.audience.contacts.bulk_create(
+    BulkCreateAudienceContactsOptions::for_contacts(vec![
+        BulkAudienceContactRow::new("cara@example.com")
+            .with_properties(HashMap::from([("plan".to_string(), "pro".to_string())]))
+            .with_list_ids(vec!["vip-list-uuid".to_string()])
+            .with_topics(vec![AudienceTopicSubscription::opt_in("newsletter-uuid")]),
+        BulkAudienceContactRow::new("dan@example.com")
+            .with_topics(vec![AudienceTopicSubscription::opt_out("promos-uuid")]),
+    ])
+    .with_list_ids(vec!["everyone-list-uuid".to_string()])
+    .with_update_existing(false),
+).await?;
+```
+
+> **Tip:**
+> `AudienceTopicSubscription::opt_out()` suppresses a topic for that contact in the same request. Useful when a topic's default subscription is opt-out, which auto-subscribes newly created contacts — a row-level opt-out cancels that instead of needing a second call. A row-level opt-out also beats a batch-level opt-in.
+
+`with_update_existing(false)` is the default: existing contacts keep their properties (they are still attached to the requested lists). Pass `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an opt-out drop an existing subscription.
+
+#### Handling the result
+
+> **Warning:**
+> An `Ok` result does **not** mean every row landed. Rows that fail validation are skipped and reported in `errors` while the rest of the batch commits — the API still returns `201`. Always check `has_errors()`.
+
+```rust
+println!("{} {} {}", result.created, result.already_existed, result.updated);
+
+if result.has_errors() {
+    for e in &result.errors {
+        // index is zero-based into the rows you submitted
+        println!("row {} ({:?}): {:?} — {}", e.index, e.email, e.error_code, e.error);
+    }
+}
+
+// Every contact that exists after the request, in submission order
+let ids = result.contact_ids();
+let cara_id = result.id_for("cara@example.com"); // case-insensitive lookup
+```
+
+`error_code` is a `BulkAudienceContactErrorCode`: `missing_email`, `invalid_email`, `invalid_property_value`, `unknown_property_key`, `unknown_list`, `unknown_topic`, or `invalid_topic_subscription`.
+
+> **Note:**
+> `already_existed` and `updated` overlap by design — "was the address already in the audience?" versus "did this request change the contact?" — so they don't sum to the row count. A contact that already existed and got attached to a list is counted in both.
+
+### Bulk membership
+
+`result.contact_ids()` from a `bulk_create()` feeds straight into the bulk membership calls, so no id lookup is needed in between:
+
+```rust
+use lettr::audience::contacts::{BulkContactListMembershipOptions, BulkContactTopicMembershipOptions};
 
 // Single list / topic membership
 client.audience.contacts.attach_to_list("contact-uuid", "list-uuid").await?;
@@ -100,7 +162,22 @@ let options = BulkContactListMembershipOptions::new()
     .with_contact_ids(vec!["c1".to_string(), "c2".to_string()])
     .with_list_ids(vec!["l1".to_string(), "l2".to_string()]);
 client.audience.contacts.bulk_attach_to_lists(options).await?;
+
+// Bulk topic membership (cartesian product of contact_ids × topic_ids)
+let options = BulkContactTopicMembershipOptions::new()
+    .with_contact_ids(vec!["c1".to_string(), "c2".to_string()])
+    .with_topic_ids(vec!["t1".to_string()]);
+let sub = client.audience.contacts.bulk_subscribe_to_topics(options.clone()).await?;
+println!("{} {} {}", sub.subscribed, sub.already_subscribed, sub.total_pairs);
+
+let unsub = client.audience.contacts.bulk_unsubscribe_from_topics(options).await?;
+println!("{} {}", unsub.unsubscribed, unsub.total_pairs);
 ```
+
+Both topic calls process every `contact_ids × topic_ids` combination, up to 1000 contacts × 50 topics. Unsubscribing ignores pairs that don't exist, so `unsubscribed` can be lower than `total_pairs`.
+
+> **Note:**
+> `bulk_unsubscribe_from_topics()` and `bulk_detach_from_lists()` issue a `DELETE` with a request body. `reqwest` handles that, but a proxy in front of your app may not.
 
 ## Lists
 

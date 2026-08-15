@@ -3,7 +3,7 @@
 
 # Java — Managing Webhooks
 
-> List, create, update, and delete webhooks with the Java SDK
+> List, create, update, and delete webhook endpoints for email delivery, open, click, and bounce events with the Lettr Java SDK
 
 Webhooks deliver real-time notifications when emails are delivered, opened, clicked, bounced, or marked as spam. The `lettr.webhooks()` service manages your endpoints.
 

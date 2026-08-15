@@ -3,7 +3,7 @@
 
 # Node.js — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Node.js SDK
+> List, inspect, send, schedule, and unschedule email campaigns with the Lettr Node.js SDK and its result-based client
 
 The `client.campaigns` resource gives you read access to campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **created and edited in the Lettr dashboard**; the API does not expose create, update, or delete.
 

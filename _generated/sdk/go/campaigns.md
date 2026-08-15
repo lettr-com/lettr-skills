@@ -3,7 +3,7 @@
 
 # Go — Campaigns
 
-> List, inspect, send, and schedule campaigns with the Go SDK
+> List, inspect, send now, schedule, and unschedule email campaigns with the Lettr Go SDK Campaigns service.
 
 The `client.Campaigns` service gives you read access to campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **authored in the Lettr app**; the API does not expose create, update, or delete.
 

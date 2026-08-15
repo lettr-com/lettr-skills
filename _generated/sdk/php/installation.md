@@ -3,7 +3,7 @@
 
 # PHP — Installation
 
-> Install and configure the Lettr PHP SDK
+> Install the lettr/lettr-php Composer package, instantiate the client with your API key, and store credentials securely in your PHP app.
 
 This page covers installing the `lettr/lettr-php` Composer package and configuring the client for your application. If you haven't already, start with the [Introduction](https://docs.lettr.com/quickstart/php/introduction) for a quick overview of what the SDK provides.
 

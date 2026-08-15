@@ -4185,6 +4185,25 @@
               }
             }
           },
+          "409": {
+            "description": "A contact with this email already exists for the team. No contact is created and the existing one is left untouched — update it with `PATCH /audience/contacts/{contactId}`, or use `POST /audience/contacts/bulk` with `update_existing` enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "contact_already_exists": {
+                    "summary": "Email already used by a contact in this team",
+                    "value": {
+                      "message": "A contact with the email existing@demo.test already exists. Use PATCH /audience/contacts/{contactId} to update it, or POST /audience/contacts/bulk with update_existing enabled.",
+                      "error_code": "resource_already_exists"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation error",
             "content": {
@@ -4219,7 +4238,7 @@
       "post": {
         "operationId": "bulkCreateAudienceContacts",
         "summary": "Bulk create contacts",
-        "description": "Create up to 1000 contacts in a single request. Emails are normalized and deduplicated; contacts that already exist are reported in `already_existed`. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "description": "Create up to 1000 contacts in a single request. Send `contacts` to give each row its own properties, lists and topics, or the legacy `emails` array when the whole batch shares one property map. Emails are normalized and deduplicated; addresses that already exist are reported in `already_existed` and only modified when `update_existing` is set. Rows that fail validation are skipped and returned in `errors` — the request only fails with 422 when nothing could be written. The response carries the contact ids, so a follow-up call to the bulk list or topic endpoints needs no lookup. Requires the `audience:write` scope and is blocked for sandbox API keys.",
         "tags": [
           "Audience"
         ],
@@ -4355,6 +4374,116 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BulkDetachContactsFromListsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/audience/contacts/topics/bulk": {
+      "post": {
+        "operationId": "bulkSubscribeContactsToTopics",
+        "summary": "Bulk subscribe contacts to topics",
+        "description": "Subscribe every combination of `contact_ids × topic_ids` (up to 1000 contacts × 50 topics). Pairs that already exist are reported in `already_subscribed`. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "tags": [
+          "Audience"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAudienceContactTopicsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkSubscribeContactsToTopicsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "bulkUnsubscribeContactsFromTopics",
+        "summary": "Bulk unsubscribe contacts from topics",
+        "description": "Remove every combination of `contact_ids × topic_ids`. Pairs that did not exist are ignored. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "tags": [
+          "Audience"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAudienceContactTopicsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkUnsubscribeContactsFromTopicsResponse"
                 }
               }
             }
@@ -10800,10 +10929,7 @@
       },
       "BulkStoreAudienceContactsRequest": {
         "type": "object",
-        "description": "Bulk create contacts. Emails are normalized (lowercased, trimmed) and deduplicated.",
-        "required": [
-          "emails"
-        ],
+        "description": "Bulk create contacts, up to 1000 per request. Send either `emails` (one shared property map for the whole batch) or `contacts` (a row per contact, each with its own properties, lists and topics) — not both. Emails are normalized (lowercased, trimmed) and deduplicated, with the last row for an address winning. Batch-wide `list_ids` and `topics` are unioned into every row.",
         "properties": {
           "emails": {
             "type": "array",
@@ -10817,7 +10943,8 @@
             "example": [
               "jane@example.com",
               "joe@example.com"
-            ]
+            ],
+            "description": "Legacy shape: a flat list of addresses that all share `properties` and `list_id`."
           },
           "list_id": {
             "type": [
@@ -10825,7 +10952,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional list to add all contacts to"
+            "description": "Optional list to add all contacts to. Kept for backwards compatibility; folded into `list_ids`."
           },
           "properties": {
             "type": [
@@ -10836,9 +10963,58 @@
               "type": "string",
               "maxLength": 1000
             },
-            "description": "Custom property values applied to every contact created in this batch"
+            "description": "Custom property values applied to every contact in the batch. Works with both shapes; with `contacts`, a key set on a row overrides the batch value for that key."
+          },
+          "contacts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "One row per contact. A row that fails validation is skipped and reported in the response `errors` array — the rest of the batch is still written.",
+            "items": {
+              "$ref": "#/components/schemas/BulkAudienceContactRow"
+            }
+          },
+          "list_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Lists every contact in the batch is added to."
+          },
+          "topics": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/AudienceTopicSubscription"
+            },
+            "description": "Topic subscriptions applied to every contact in the batch. A row-level `opt_out` wins over a batch-level `opt_in` for that contact."
+          },
+          "update_existing": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, contacts that already exist have their properties merged (submitted keys overwrite, others are preserved) and topic `opt_out` entries applied. When false they are counted in `already_existed` and their properties and subscriptions are left alone. Lists and topic opt-ins are attached either way."
           }
-        }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "emails"
+            ]
+          },
+          {
+            "required": [
+              "contacts"
+            ]
+          }
+        ]
       },
       "BulkStoreAudienceContactsResponse": {
         "type": "object",
@@ -10855,7 +11031,11 @@
             "type": "object",
             "required": [
               "created",
-              "already_existed"
+              "updated",
+              "already_existed",
+              "error_count",
+              "errors",
+              "contacts"
             ],
             "properties": {
               "created": {
@@ -10866,7 +11046,33 @@
               "already_existed": {
                 "type": "integer",
                 "minimum": 0,
+                "example": 0,
+                "description": "Submitted addresses that were already in the audience."
+              },
+              "updated": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Existing contacts the request changed — properties merged, a list or topic attached, or a subscription dropped.",
                 "example": 0
+              },
+              "error_count": {
+                "type": "integer",
+                "minimum": 0,
+                "example": 0
+              },
+              "errors": {
+                "type": "array",
+                "description": "Rows that were skipped. Empty when the whole batch was accepted.",
+                "items": {
+                  "$ref": "#/components/schemas/BulkAudienceContactError"
+                }
+              },
+              "contacts": {
+                "type": "array",
+                "description": "Every contact in the batch that exists after the request, in submission order.",
+                "items": {
+                  "$ref": "#/components/schemas/BulkAudienceContactRef"
+                }
               }
             }
           }
@@ -11939,6 +12145,239 @@
             "format": "date-time",
             "description": "Future delivery time (ISO 8601). Include a timezone offset (e.g. `+02:00` or `Z`); a value without an offset is interpreted as UTC. Must be in the future.",
             "example": "2026-06-01T09:00:00+00:00"
+          }
+        }
+      },
+      "AudienceTopicSubscription": {
+        "type": "object",
+        "description": "A topic and the subscription state to apply to it.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscription": {
+            "type": "string",
+            "enum": [
+              "opt_in",
+              "opt_out"
+            ],
+            "default": "opt_in",
+            "description": "`opt_in` subscribes the contact. `opt_out` suppresses the topic — including topics that auto-subscribe new contacts — and, with `update_existing`, unsubscribes a contact that was already subscribed."
+          }
+        }
+      },
+      "BulkAudienceContactRow": {
+        "type": "object",
+        "description": "One contact in a bulk create payload.",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "jane@example.com"
+          },
+          "properties": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "description": "Custom property values for this contact. Each key must match a property defined for the team.",
+            "example": {
+              "first_name": "Jane"
+            }
+          },
+          "list_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Lists this contact is added to, on top of the batch-wide ones."
+          },
+          "topics": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/AudienceTopicSubscription"
+            },
+            "description": "Topic subscriptions for this contact."
+          }
+        }
+      },
+      "BulkAudienceContactError": {
+        "type": "object",
+        "description": "A row that was skipped, with its position in the submitted array.",
+        "required": [
+          "index",
+          "email",
+          "error_code",
+          "error"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based position of the row in the request."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_code": {
+            "type": "string",
+            "enum": [
+              "missing_email",
+              "invalid_email",
+              "invalid_property_value",
+              "unknown_property_key",
+              "unknown_list",
+              "unknown_topic",
+              "invalid_topic_subscription"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "BulkAudienceContactRef": {
+        "type": "object",
+        "description": "Identity of a contact touched by the request, so the caller can chain into the bulk list and topic endpoints without looking ids up again.",
+        "required": [
+          "id",
+          "email",
+          "created"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "True when this request created the contact."
+          }
+        }
+      },
+      "BulkAudienceContactTopicsRequest": {
+        "type": "object",
+        "description": "Bulk subscribe/unsubscribe contacts to/from topics. All combinations of contact_ids × topic_ids are processed.",
+        "required": [
+          "contact_ids",
+          "topic_ids"
+        ],
+        "properties": {
+          "contact_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "topic_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "BulkSubscribeContactsToTopicsResponse": {
+        "type": "object",
+        "required": [
+          "message",
+          "data"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Contacts subscribed to topics."
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "subscribed",
+              "already_subscribed",
+              "total_pairs"
+            ],
+            "properties": {
+              "subscribed": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Newly subscribed pairs"
+              },
+              "already_subscribed": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Pairs that already existed"
+              },
+              "total_pairs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Total contact × topic pairs processed"
+              }
+            }
+          }
+        }
+      },
+      "BulkUnsubscribeContactsFromTopicsResponse": {
+        "type": "object",
+        "required": [
+          "message",
+          "data"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Contacts unsubscribed from topics."
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "unsubscribed",
+              "total_pairs"
+            ],
+            "properties": {
+              "unsubscribed": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Pairs that were removed"
+              },
+              "total_pairs": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Total contact × topic pairs processed"
+              }
+            }
           }
         }
       }

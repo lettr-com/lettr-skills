@@ -3,7 +3,7 @@
 
 # Node.js — Managing Webhooks
 
-> List, create, update, and delete webhooks with the Node.js SDK
+> Manage webhook endpoints for delivery, open, click, bounce, and spam events with the client.webhooks resource in the Lettr Node.js SDK.
 
 Webhooks deliver real-time notifications when emails are delivered, opened, clicked, bounced, or marked as spam. The `client.webhooks` resource manages your endpoints.
 

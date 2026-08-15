@@ -3,7 +3,7 @@
 
 # Laravel — Managing Webhooks
 
-> List, create, update, and delete webhooks from Laravel
+> List, create, update, and delete Lettr webhook endpoints from Laravel for delivery, open, click, bounce, and spam events
 
 Webhooks deliver real-time notifications when emails are delivered, opened, clicked, bounced, or marked as spam. Manage your webhook endpoints through the `Lettr` facade.
 

@@ -3,7 +3,7 @@
 
 # Java — Templates
 
-> Manage Lettr templates with the Java SDK
+> List, get, create, update, and delete Lettr-managed email templates with the Lettr Java SDK Templates service.
 
 The `lettr.templates()` service manages Lettr-managed templates. To *send* a template, set `templateSlug` on `CreateEmailOptions` — see [Sending Emails](https://docs.lettr.com/quickstart/java/quickstart#sending-emails).
 

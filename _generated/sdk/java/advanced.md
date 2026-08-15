@@ -3,7 +3,7 @@
 
 # Java — Advanced
 
-> Advanced features and patterns for the Lettr Java SDK
+> Advanced Lettr Java SDK usage covering multiple recipients, reply-to, attachments, templates, batch sending, and Spring Boot.
 
 This guide covers advanced features of the Lettr Java SDK including attachments, templates, batch sending, error handling, Spring Boot integration, and best practices for production applications.
 

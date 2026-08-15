@@ -3,7 +3,7 @@
 
 # Rust — Advanced
 
-> Advanced features and patterns for the Lettr Rust SDK
+> Advanced Lettr Rust SDK patterns: CC and BCC, reply-to, attachments, templates, batch sending, and production error handling.
 
 This guide covers advanced features of the Lettr Rust SDK including attachments, templates, batch sending, error handling, and best practices for production applications.
 

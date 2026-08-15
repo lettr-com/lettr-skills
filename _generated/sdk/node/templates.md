@@ -3,7 +3,7 @@
 
 # Node.js — Templates
 
-> Manage Lettr templates with the Node.js SDK
+> List, get, create, update, and delete Lettr-managed email templates using the client.templates resource in the Node.js SDK.
 
 The `client.templates` resource manages Lettr-managed templates. To *send* a template, see [Sending Emails → Send with a Template](https://docs.lettr.com/quickstart/nodejs/sending-emails#send-with-a-template).
 

@@ -3,7 +3,7 @@
 
 # Go — Managing Webhooks
 
-> List, create, update, and delete webhooks with the Go SDK
+> List, create, update, and delete webhook endpoints with the Lettr Go SDK to receive real-time email event notifications.
 
 Webhooks deliver real-time notifications when emails are delivered, opened, clicked, bounced, or marked as spam. The `client.Webhooks` service manages your endpoints.
 

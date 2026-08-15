@@ -3,7 +3,7 @@
 
 # Go — Managing Domains
 
-> List, add, verify, and delete sending domains with the Go SDK
+> List, add, verify, and delete sending domains with the Lettr Go SDK, ideal for multi-tenant apps and DNS automation.
 
 The `client.Domains` service manages your sending domains — useful for multi-tenant apps onboarding customer domains, or for automating DNS verification.
 

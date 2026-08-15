@@ -3,7 +3,7 @@
 
 # Laravel — Sending Emails
 
-> Different ways to send emails with Lettr for Laravel
+> Send emails with Lettr in Laravel using the Mail facade, Lettr facade, quick template sending, email builder, or custom Mailables
 
 Lettr integrates seamlessly with Laravel's mail system. This page covers every approach — from the standard Mail facade to the low-level email builder — so you can choose the one that fits your use case.
 

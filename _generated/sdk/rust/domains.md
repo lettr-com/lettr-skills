@@ -3,7 +3,7 @@
 
 # Rust — Managing Domains
 
-> List, add, verify, and delete sending domains with the Rust SDK
+> List, add, verify, and delete sending domains with the Lettr Rust SDK to automate DNS verification and multi-tenant onboarding.
 
 The `client.domains` service manages your sending domains — useful for multi-tenant apps onboarding customer domains, or for automating DNS verification.
 

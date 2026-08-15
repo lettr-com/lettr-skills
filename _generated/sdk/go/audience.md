@@ -3,7 +3,7 @@
 
 # Go — Audience
 
-> Manage lists, contacts, topics, properties, and segments with the Go SDK
+> Manage contacts, lists, subscription topics, custom properties, and dynamic segments with the Lettr Go SDK Audience service.
 
 The `client.Audience` service manages everything campaigns send to. Each kind is a sub-service:
 
@@ -67,16 +67,78 @@ _, err = client.Audience.Contacts.Create(ctx, &lettr.CreateAudienceContactReques
 })
 ```
 
-### Bulk operations & membership
+### Bulk create contacts
+
+`BulkCreate` takes up to 1000 contacts per request in one of two shapes. The flat `Emails` shape gives every address the same lists, properties and topics:
 
 ```go
-// Bulk create
-listID := "list-uuid"
 _, err = client.Audience.Contacts.BulkCreate(ctx, &lettr.BulkCreateAudienceContactsRequest{
-    Emails: []string{"a@example.com", "b@example.com"},
-    ListID: &listID,
+    Emails:     []string{"a@example.com", "b@example.com"},
+    ListIDs:    []string{"list-uuid"},
+    Properties: map[string]string{"source": "spring-campaign"},
 })
+```
 
+The `Contacts` shape addresses each contact individually. Row-level `ListIDs` and `Topics` are applied **on top of** the batch-wide ones, and a row's `Properties` key overrides the batch-wide value for that key:
+
+```go
+resp, err := client.Audience.Contacts.BulkCreate(ctx, &lettr.BulkCreateAudienceContactsRequest{
+    Contacts: []lettr.BulkAudienceContactRow{
+        {
+            Email:      "cara@example.com",
+            Properties: map[string]string{"plan": "pro"},
+            ListIDs:    []string{"vip-list-uuid"},
+            Topics:     []lettr.AudienceTopicSubscription{lettr.SubscribeTopic("newsletter-uuid")},
+        },
+        {
+            Email:  "dan@example.com",
+            Topics: []lettr.AudienceTopicSubscription{lettr.UnsubscribeTopic("promos-uuid")},
+        },
+    },
+    ListIDs:        []string{"everyone-list-uuid"},
+    Properties:     map[string]string{"source": "spring-campaign"},
+    UpdateExisting: false,
+})
+```
+
+Fill in `Emails` or `Contacts`, not both.
+
+> **Tip:**
+> `lettr.UnsubscribeTopic` suppresses a topic for that contact in the same request. Useful when a topic's default subscription is opt-out, which auto-subscribes newly created contacts — a row-level opt-out cancels that instead of needing a second call. A row-level opt-out also beats a batch-level opt-in.
+
+`UpdateExisting` defaults to `false`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an opt-out drop an existing subscription.
+
+#### Handling the result
+
+> **Warning:**
+> A `nil` error does **not** mean every row landed. Rows that fail validation are skipped and reported in `Errors` while the rest of the batch commits — the API still returns `201`. Always check `HasErrors()`.
+
+```go
+data := resp.Data
+fmt.Println(data.Created, data.AlreadyExisted, data.Updated)
+
+if data.HasErrors() {
+    for _, e := range data.Errors {
+        // Index is zero-based into the rows you submitted
+        fmt.Printf("row %d (%s): %s — %s\n", e.Index, e.Email, e.ErrorCode, e.Error)
+    }
+}
+
+// Every contact that exists after the request, in submission order
+ids := data.ContactIDs()
+caraID, ok := data.IDFor("cara@example.com") // case-insensitive lookup
+```
+
+`ErrorCode` is one of the `lettr.BulkContactError*` constants: `missing_email`, `invalid_email`, `invalid_property_value`, `unknown_property_key`, `unknown_list`, `unknown_topic`, or `invalid_topic_subscription`.
+
+> **Note:**
+> `AlreadyExisted` and `Updated` overlap by design — "was the address already in the audience?" versus "did this request change the contact?" — so they don't sum to the row count. A contact that already existed and got attached to a list is counted in both.
+
+### Bulk membership
+
+`data.ContactIDs()` from a `BulkCreate` feeds straight into the bulk membership calls, so no id lookup is needed in between:
+
+```go
 // Single list / topic membership
 _, err = client.Audience.Contacts.AttachToList(ctx, "contact-uuid", "list-uuid")
 err = client.Audience.Contacts.DetachFromList(ctx, "contact-uuid", "list-uuid")
@@ -92,7 +154,22 @@ _, err = client.Audience.Contacts.BulkDetachFromLists(ctx, &lettr.BulkContactsLi
     ContactIDs: []string{"c1"},
     ListIDs:    []string{"l1"},
 })
+
+// Bulk topic membership (cartesian product of ContactIDs × TopicIDs)
+sub, err := client.Audience.Contacts.BulkSubscribeToTopics(ctx, &lettr.BulkContactsTopicsRequest{
+    ContactIDs: []string{"c1", "c2"},
+    TopicIDs:   []string{"t1"},
+})
+fmt.Println(sub.Data.Subscribed, sub.Data.AlreadySubscribed, sub.Data.TotalPairs)
+
+unsub, err := client.Audience.Contacts.BulkUnsubscribeFromTopics(ctx, &lettr.BulkContactsTopicsRequest{
+    ContactIDs: []string{"c1"},
+    TopicIDs:   []string{"t1"},
+})
+fmt.Println(unsub.Data.Unsubscribed, unsub.Data.TotalPairs)
 ```
+
+Both topic calls process every `ContactIDs × TopicIDs` combination, up to 1000 contacts × 50 topics. Unsubscribing ignores pairs that don't exist, so `Unsubscribed` can be lower than `TotalPairs`.
 
 ## Lists
 

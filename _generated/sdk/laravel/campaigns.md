@@ -3,7 +3,7 @@
 
 # Laravel — Campaigns
 
-> List, inspect, send, and schedule campaigns from Laravel
+> List, inspect, send, schedule, and unschedule email campaigns from Laravel using the Lettr facade and the campaigns API
 
 Reach campaigns through `Lettr::campaigns()`. You get read access to your campaigns plus lifecycle actions — send now, schedule, and unschedule. Campaigns are **created and edited in the Lettr dashboard**; the API does not expose create, update, or delete.
 

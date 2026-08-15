@@ -3,7 +3,7 @@
 
 # Go — Templates
 
-> Manage Lettr templates with the Go SDK
+> List, get, create, update, and delete Lettr-managed email templates with the Lettr Go SDK Templates service.
 
 The `client.Templates` service manages Lettr-managed templates. To *send* a template, set `TemplateSlug` on `SendEmailRequest` — see [Sending Emails](https://docs.lettr.com/quickstart/go/quickstart#sending-emails).
 

@@ -3,7 +3,7 @@
 
 # Node.js — Audience
 
-> Manage lists, contacts, topics, properties, and segments with the Node.js SDK
+> Manage contact lists, contacts, subscription topics, custom properties, and dynamic segments with the Lettr Node.js SDK
 
 The `client.audience` resource manages everything campaigns send to. Each kind is a sub-resource:
 
@@ -71,15 +71,76 @@ await client.audience.contacts.create({
 });
 ```
 
-### Bulk operations & membership
+### Bulk create contacts
+
+`bulkCreate()` takes up to 1000 contacts per request in one of two shapes. The flat `emails` shape gives every address the same lists, properties and topics:
 
 ```typescript
-// Bulk create
 await client.audience.contacts.bulkCreate({
   emails: ["a@example.com", "b@example.com"],
-  list_id: "list-uuid",
+  list_ids: ["list-uuid"],
+  properties: { source: "spring-campaign" },
 });
+```
 
+The `contacts` shape addresses each contact individually. Row-level `list_ids` and `topics` are applied **on top of** the batch-wide ones, and a row's `properties` key overrides the batch-wide value for that key:
+
+```typescript
+const { data, error } = await client.audience.contacts.bulkCreate({
+  contacts: [
+    {
+      email: "cara@example.com",
+      properties: { plan: "pro" },
+      list_ids: ["vip-list-uuid"],
+      topics: [{ id: "newsletter-uuid", subscription: "opt_in" }],
+    },
+    {
+      email: "dan@example.com",
+      topics: [{ id: "promos-uuid", subscription: "opt_out" }],
+    },
+  ],
+  list_ids: ["everyone-list-uuid"],
+  properties: { source: "spring-campaign" },
+  update_existing: false,
+});
+```
+
+Pass `emails` or `contacts`, not both — the TypeScript types enforce it.
+
+> **Tip:**
+> `subscription: "opt_out"` suppresses a topic for that contact in the same request. Useful when a topic's `default_subscription` is `opt_out`, which auto-subscribes newly created contacts — a row-level `opt_out` cancels that instead of needing a second call. A row-level `opt_out` also beats a batch-level `opt_in`.
+
+`update_existing` defaults to `false`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an `opt_out` drop an existing subscription.
+
+#### Handling the result
+
+> **Warning:**
+> `error === null` does **not** mean every row landed. Rows that fail validation are skipped and reported in `data.errors` while the rest of the batch commits — the API still returns `201`. Always check `data.errors.length`.
+
+```typescript
+if (!error) {
+  console.log(data.created, data.already_existed, data.updated);
+
+  for (const e of data.errors) {
+    // index is zero-based into the rows you submitted
+    console.error(`row ${e.index} (${e.email}): ${e.error_code} — ${e.error}`);
+  }
+
+  // Every contact that exists after the request, in submission order
+  const ids = data.contacts.map((c) => c.id);
+}
+```
+
+`error_code` is one of `missing_email`, `invalid_email`, `invalid_property_value`, `unknown_property_key`, `unknown_list`, `unknown_topic`, or `invalid_topic_subscription`.
+
+> **Note:**
+> `already_existed` and `updated` overlap by design — "was the address already in the audience?" versus "did this request change the contact?" — so they don't sum to the row count. A contact that already existed and got attached to a list is counted in both.
+
+### Bulk membership
+
+`data.contacts` from a `bulkCreate()` feeds straight into the bulk membership calls, so no id lookup is needed in between:
+
+```typescript
 // Single list / topic membership
 await client.audience.contacts.attachList("contact-uuid", "list-uuid");
 await client.audience.contacts.detachList("contact-uuid", "list-uuid");
@@ -95,7 +156,25 @@ await client.audience.contacts.bulkDetachLists({
   contact_ids: ["c1"],
   list_ids: ["l1"],
 });
+
+// Bulk topic membership
+const { data: sub } = await client.audience.contacts.bulkSubscribeTopics({
+  contact_ids: ["c1", "c2"],
+  topic_ids: ["t1"],
+});
+console.log(sub!.subscribed, sub!.already_subscribed, sub!.total_pairs);
+
+const { data: unsub } = await client.audience.contacts.bulkUnsubscribeTopics({
+  contact_ids: ["c1"],
+  topic_ids: ["t1"],
+});
+console.log(unsub!.unsubscribed, unsub!.total_pairs);
 ```
+
+Both topic calls process every `contact_ids × topic_ids` combination, up to 1000 contacts × 50 topics. Unsubscribing ignores pairs that don't exist, so `unsubscribed` can be lower than `total_pairs`.
+
+> **Note:**
+> `bulkUnsubscribeTopics()` and `bulkDetachLists()` issue a `DELETE` with a request body. `fetch` handles that fine, but a proxy in front of your app may not.
 
 ## Lists
 

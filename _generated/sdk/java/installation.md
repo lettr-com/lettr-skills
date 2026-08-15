@@ -3,7 +3,7 @@
 
 # Java — Getting Started
 
-> Send transactional emails from Java using the Lettr SDK
+> Send transactional emails from Java with the official Lettr SDK, featuring type-safe builders and Java 11+ support.
 
 Send transactional emails from your Java applications using the official Lettr Java SDK. The SDK provides a type-safe, builder-pattern interface for the Lettr API with comprehensive error handling and Java 11+ support.
 
