@@ -149,25 +149,38 @@ async fn main() -> lettr::Result<()> {
 > **Tip:**
 > Add `.env` to your `.gitignore` file to prevent accidentally committing your API key to version control.
 
-### Custom HTTP Client
+### Client construction
 
-Use a custom reqwest client with custom timeouts or settings:
+The client builds and owns its own `reqwest` client internally. There are three
+constructors:
 
 ```rust
 use lettr::Lettr;
-use reqwest::Client;
-use std::time::Duration;
 
-#[tokio::main]
-async fn main() -> lettr::Result<()> {
-    let http_client = Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()?;
+// API key directly
+let client = Lettr::new("your-api-key");
 
-    let client = Lettr::with_client("your-api-key", http_client);
+// Read LETTR_API_KEY from the environment
+let client = Lettr::from_env();
 
-    Ok(())
-}
+// Point at a different base URL (testing, self-hosted proxies)
+let client = Lettr::with_base_url("your-api-key", "https://app.lettr.com/api");
+```
+
+> **Note:**
+> Injecting your own `reqwest::Client` — and therefore setting custom timeouts,
+> proxies, or connection-pool settings — is **not currently supported**. If you
+> need it, open an issue on
+> [lettr-rust](https://github.com/lettr-com/lettr-rust).
+
+### Blocking usage
+
+The crate is async by default. For synchronous code, enable the `blocking`
+feature, which swaps the internal client for `reqwest::blocking`:
+
+```toml
+[dependencies]
+lettr = { version = "1", features = ["blocking"] }
 ```
 
 ## Sending Emails

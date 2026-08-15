@@ -68,9 +68,7 @@ let email = CreateEmailOptions::new(
     "Your invoice",
 )
 .with_html("<p>Please find your invoice attached.</p>")
-.with_attachments(vec![
-    Attachment::new("invoice.pdf", "application/pdf", encoded),
-]);
+.with_attachment(Attachment::new("invoice.pdf", "application/pdf", encoded));
 
 client.emails.send(email).await?;
 ```
@@ -101,8 +99,12 @@ let email = CreateEmailOptions::new(
     ["recipient@example.com"],
     "Files attached",
 )
-.with_html("<p>See attached files.</p>")
-.with_attachments(attachments);
+.with_html("<p>See attached files.</p>");
+
+// `with_attachment` adds one at a time — fold a collection in:
+let email = attachments
+    .into_iter()
+    .fold(email, |email, attachment| email.with_attachment(attachment));
 
 client.emails.send(email).await?;
 ```
@@ -211,6 +213,7 @@ The SDK provides idiomatic Rust error handling with the `Result` type:
 
 ```rust
 use lettr::{Lettr, CreateEmailOptions, Error};
+use lettr::error::ErrorCode; // not re-exported at the crate root
 
 let email = CreateEmailOptions::new(
     "invalid@unverified-domain.com",
@@ -230,17 +233,27 @@ match client.emails.send(email).await {
             eprintln!("  {}: {:?}", field, messages);
         }
     }
-    Err(Error::Authentication(err)) => {
-        // 401 authentication errors
-        eprintln!("Authentication failed: {}", err.message);
-    }
-    Err(Error::RateLimit(err)) => {
-        // 429 rate limit errors
-        eprintln!("Rate limit exceeded: {}", err.message);
-    }
     Err(Error::Api(err)) => {
-        // Other API errors (500, 503, etc.)
-        eprintln!("API error: {}", err.message);
+        // Every non-422 API error arrives here — 400, 401, 429, 5xx.
+        // Discriminate on the machine-readable code, not on the variant.
+        match err.error_code.as_ref() {
+            Some(ErrorCode::UnconfiguredDomain) | Some(ErrorCode::InvalidDomain) => {
+                // 400 — sender domain not verified. NOT a validation error.
+                eprintln!("Sending domain not verified: {}", err.message);
+            }
+            Some(ErrorCode::QuotaExceeded) | Some(ErrorCode::DailyQuotaExceeded) => {
+                eprintln!("Sending quota exhausted: {}", err.message);
+            }
+            // `rate_limit_exceeded` and `invalid_api_key` have no dedicated
+            // variant yet, so they arrive as `Unknown`.
+            Some(ErrorCode::Unknown(code)) if code == "rate_limit_exceeded" => {
+                eprintln!("Rate limited — back off and retry: {}", err.message);
+            }
+            Some(ErrorCode::Unknown(code)) if code == "invalid_api_key" => {
+                eprintln!("Authentication failed: {}", err.message);
+            }
+            _ => eprintln!("API error: {}", err.message),
+        }
     }
     Err(err) => {
         // Network or other errors

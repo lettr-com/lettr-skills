@@ -6821,7 +6821,8 @@
               },
               "transactional": {
                 "type": "boolean",
-                "description": "Mark email as transactional (not marketing)"
+                "default": true,
+                "description": "Mark email as transactional (not marketing). **Defaults to `true`.** Transactional mail bypasses unsubscribe suppression, so any send a recipient can opt out of must explicitly set this to `false`."
               },
               "inline_css": {
                 "type": "boolean",

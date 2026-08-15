@@ -25,7 +25,7 @@ Validate it: `GET /auth/check` returns the team ID on success. On `401`, the key
 
 ## 4. Make sure there's a verified sending domain
 
-Sending from an unverified domain returns `422`, and this is the single most common first-send failure. Check `GET /domains`. If the user's intended `from` domain isn't verified:
+Sending from an unverified domain returns **`400`** with `error_code: unconfigured_domain`, and this is the single most common first-send failure. Check `GET /domains`. If the user's intended `from` domain isn't verified:
 
 1. Create it (`POST /domains` with `domain`). The response carries the DNS records to add (CNAME / DKIM / return-path).
 2. Hand those records to the user to apply at their DNS provider — this skill does not touch their registrar.
