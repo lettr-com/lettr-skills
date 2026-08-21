@@ -32,6 +32,7 @@ Never invent method names from memory — the generated reference is the source 
 
 - **`from` must be on a verified sending domain.** Unverified → **`400`** with `error_code: unconfigured_domain` (not `422` — see error handling below). If the user hasn't verified one, route to `install` (domain step) before sending.
 - **50 recipients max per call, counted across `to` + `cc` + `bcc` combined** (not 50 each). More than that → batch (see the table above).
+- **Quota is charged per recipient on the same `to` + `cc` + `bcc` basis** — a 50-address call costs 50, not 1. If you're adding a fixed `bcc` (an archive or audit address) to every send, say so out loud: it doubles the user's quota consumption. Enforcement is all-or-nothing, so a call that would cross the limit is rejected entirely rather than partially delivered.
 - **`transactional` defaults to `true` — you must opt *out*.** It bypasses unsubscribe suppression, which is correct for password resets and receipts. For anything a user can opt out of, explicitly set `options.transactional: false`; leaving it unset sends to unsubscribed contacts.
 
 ## 4. Wrap the send in error handling
