@@ -153,14 +153,18 @@ resp, err := client.Emails.Send(ctx, &lettr.SendEmailRequest{
 Enable open and click tracking:
 
 ```go
+// The tracking fields are *bool so that "unset" stays distinguishable from
+// "explicitly off"; take the address of a local to set them.
+enabled := true
+
 resp, err := client.Emails.Send(ctx, &lettr.SendEmailRequest{
     From:    "marketing@yourdomain.com",
     To:      []string{"user@example.com"},
     Subject: "Newsletter",
     Html:    "<p>Check out <a href='https://example.com'>our website</a>!</p>",
-    Options: &lettr.EmailOptions{
-        OpenTracking:  true,
-        ClickTracking: true,
+    Options: &lettr.SendEmailOptions{
+        OpenTracking:  &enabled,
+        ClickTracking: &enabled,
     },
 })
 ```
@@ -475,7 +479,7 @@ func sendWithRetry(client *lettr.Client, req *lettr.SendEmailRequest, maxRetries
         }
 
         // Don't retry validation errors
-        if _, ok := err.(*lettr.ValidationError); ok {
+        if lettr.IsValidationError(err) {
             return err
         }
 
