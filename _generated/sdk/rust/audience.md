@@ -117,7 +117,7 @@ let result = client.audience.contacts.bulk_create(
 > **Tip:**
 > `AudienceTopicSubscription::opt_out()` suppresses a topic for that contact in the same request. Useful when a topic's default subscription is opt-out, which auto-subscribes newly created contacts — a row-level opt-out cancels that instead of needing a second call. A row-level opt-out also beats a batch-level opt-in.
 
-`with_update_existing(false)` is the default: existing contacts keep their properties (they are still attached to the requested lists). Pass `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an opt-out drop an existing subscription.
+`with_update_existing(false)` is the default: existing contacts keep their properties (they are still attached to the requested lists). Pass `true` to merge properties — submitted keys overwrite, absent keys are preserved. It governs properties only: a row-level opt-out drops an existing subscription either way.
 
 #### Handling the result
 
