@@ -4238,7 +4238,7 @@
       "post": {
         "operationId": "bulkCreateAudienceContacts",
         "summary": "Bulk create contacts",
-        "description": "Create up to 1000 contacts in a single request. Send `contacts` to give each row its own properties, lists and topics, or the legacy `emails` array when the whole batch shares one property map. Emails are normalized and deduplicated; addresses that already exist are reported in `already_existed` and only modified when `update_existing` is set. Rows that fail validation are skipped and returned in `errors` — the request only fails with 422 when nothing could be written. The response carries the contact ids, so a follow-up call to the bulk list or topic endpoints needs no lookup. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "description": "Create up to 1000 contacts in a single request. Send `contacts` to give each row its own properties, lists and topics, or the legacy `emails` array when the whole batch shares one property map. Emails are normalized and deduplicated; addresses that already exist are reported in `already_existed`, are always attached to the requested lists and topics and always have a row-level `opt_out` applied, and have their properties merged only when `update_existing` is set. Rows that fail validation are skipped and returned in `errors` — the request only fails with 422 when nothing could be written. The response carries the contact ids, so a follow-up call to the bulk list or topic endpoints needs no lookup. Requires the `audience:write` scope and is blocked for sandbox API keys.",
         "tags": [
           "Audience"
         ],
@@ -11001,7 +11001,7 @@
           "update_existing": {
             "type": "boolean",
             "default": false,
-            "description": "When true, contacts that already exist have their properties merged (submitted keys overwrite, others are preserved) and topic `opt_out` entries applied. When false they are counted in `already_existed` and their properties and subscriptions are left alone. Lists and topic opt-ins are attached either way."
+            "description": "When true, contacts that already exist have their properties merged — submitted keys overwrite, others are preserved. When false their properties are left alone and they are counted in `already_existed`. This flag governs property merges only: lists, topic opt-ins and topic `opt_out` entries are always applied, so a row-level `opt_out` drops an existing subscription whether or not the flag is set."
           }
         },
         "anyOf": [

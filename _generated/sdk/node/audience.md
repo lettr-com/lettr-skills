@@ -110,7 +110,7 @@ Pass `emails` or `contacts`, not both — the TypeScript types enforce it.
 > **Tip:**
 > `subscription: "opt_out"` suppresses a topic for that contact in the same request. Useful when a topic's `default_subscription` is `opt_out`, which auto-subscribes newly created contacts — a row-level `opt_out` cancels that instead of needing a second call. A row-level `opt_out` also beats a batch-level `opt_in`.
 
-`update_existing` defaults to `false`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `true` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an `opt_out` drop an existing subscription.
+`update_existing` defaults to `false`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `true` to merge properties — submitted keys overwrite, absent keys are preserved. It governs properties only: a row-level `opt_out` drops an existing subscription either way.
 
 #### Handling the result
 

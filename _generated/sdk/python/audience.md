@@ -109,7 +109,7 @@ Pass `emails` or `contacts` — omitting both raises `ValueError`.
 > **Tip:**
 > `TopicSubscription.opt_out()` suppresses a topic for that contact in the same request. Useful when a topic's `default_subscription` is `opt_out`, which auto-subscribes newly created contacts — a row-level opt-out cancels that instead of needing a second call. A row-level opt-out also beats a batch-level opt-in.
 
-`update_existing` defaults to `False`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `True` to merge properties — submitted keys overwrite, absent keys are preserved — and to let an opt-out drop an existing subscription.
+`update_existing` defaults to `False`, which leaves existing contacts' properties alone (they are still attached to the requested lists). Set it to `True` to merge properties — submitted keys overwrite, absent keys are preserved. It governs properties only: a row-level opt-out drops an existing subscription either way.
 
 #### Handling the result
 
