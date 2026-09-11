@@ -148,7 +148,22 @@
       "post": {
         "operationId": "sendEmail",
         "summary": "Send Email",
-        "description": "Send a transactional email with optional attachments, tracking, and personalization. At least one of `html` or `text` content must be provided.",
+        "description": "Send a transactional email with optional attachments, tracking, and personalization. At least one of `html` or `text` content must be provided. Supply `Idempotency-Key` for safe retries using SparkPost native transmission idempotency. Keys are namespaced per Lettr API key and retained by SparkPost for 24 hours. Repeating the same transmission payload returns its original result without another delivery; conflicting payloads or in-progress transmissions return 409. Retry transport failures with the same key. Lettr still validates authorization, domains and sending quota before contacting SparkPost, so an exhausted quota returns 429 even for a retry. Replayed responses do not increment sending counters again. Requests without this header are sent independently.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "A unique key for one logical send. Reuse it with the same payload and API key when retrying. SparkPost retains the key for 24 hours. If using a template, keep the resolved template content unchanged across retries.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9._-]{1,255}$"
+            },
+            "example": "order-confirmation-12345"
+          }
+        ],
         "tags": [
           "Emails"
         ],
@@ -300,6 +315,15 @@
           "200": {
             "description": "Email queued for delivery. Free tier teams receive quota headers indicating their usage and limits.",
             "headers": {
+              "Idempotency-Replayed": {
+                "description": "Present with value true when SparkPost returns an existing transmission. Quota headers describe current usage before this attempt.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              },
               "X-Monthly-Limit": {
                 "description": "Total monthly email limit for this team. Only present for free tier teams.",
                 "schema": {
@@ -421,6 +445,39 @@
               }
             }
           },
+          "409": {
+            "description": "SparkPost idempotency conflict: the key was used with a different transmission payload, or the original transmission is still processing.",
+            "headers": {
+              "Retry-After": {
+                "description": "Present for idempotency_in_progress. Retry with the same key after this many seconds.",
+                "schema": {
+                  "type": "integer",
+                  "example": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "conflict": {
+                    "value": {
+                      "message": "This Idempotency-Key was already used with a different request payload.",
+                      "error_code": "idempotency_key_conflict"
+                    }
+                  },
+                  "in_progress": {
+                    "value": {
+                      "message": "A request with this Idempotency-Key is still processing. Retry with the same key.",
+                      "error_code": "idempotency_in_progress"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation error",
             "content": {
@@ -528,7 +585,7 @@
             }
           },
           "502": {
-            "description": "Email transmission failed (upstream provider error)",
+            "description": "Email transmission failed (upstream provider error). Retry with the same Idempotency-Key so SparkPost can resolve an uncertain outcome without creating a duplicate transmission.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2346,6 +2403,29 @@
             }
           },
           {
+            "name": "folder_id",
+            "in": "query",
+            "description": "Return only the templates in one folder of the resolved project. Discover folder ids with `GET /folders`. A folder that does not exist in that project answers 404 rather than an empty list, so a typo cannot be mistaken for \"nothing is there yet\".",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "example": 10
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "Return only the templates of one module. If not provided, templates of both modules are returned.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "transactional",
+                "campaign"
+              ],
+              "example": "campaign"
+            }
+          },
+          {
             "name": "per_page",
             "in": "query",
             "description": "Number of results per page (1-100)",
@@ -2385,6 +2465,8 @@
                         "slug": "welcome-email",
                         "project_id": 5,
                         "folder_id": 10,
+                        "purpose": "transactional",
+                        "preparation_status": "ready",
                         "created_at": "2025-01-15T10:00:00+00:00",
                         "updated_at": "2025-01-20T14:30:00+00:00"
                       }
@@ -2422,6 +2504,13 @@
                     "summary": "No default project configured",
                     "value": {
                       "message": "No default project is configured for this team.",
+                      "error_code": "not_found"
+                    }
+                  },
+                  "folder_not_found": {
+                    "summary": "Folder not in this project",
+                    "value": {
+                      "message": "Folder with ID '10' was not found in the specified project.",
                       "error_code": "not_found"
                     }
                   }
@@ -2488,7 +2577,7 @@
                   "summary": "Create with Topol JSON",
                   "value": {
                     "name": "Welcome Email",
-                    "json": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
+                    "json": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
                   }
                 },
                 "with_html": {
@@ -2505,6 +2594,14 @@
                     "project_id": 5,
                     "folder_id": 10,
                     "html": "<html><body><p>Invoice for {{CUSTOMER_NAME}}</p></body></html>"
+                  }
+                },
+                "marketing_template": {
+                  "summary": "Create a marketing template for campaigns",
+                  "value": {
+                    "name": "October Newsletter",
+                    "purpose": "campaign",
+                    "html": "<html><body><p>Hi {{FIRST_NAME}}, here is what shipped this month.</p></body></html>"
                   }
                 }
               }
@@ -2527,6 +2624,8 @@
                     "slug": "welcome-email",
                     "project_id": 5,
                     "folder_id": 10,
+                    "purpose": "transactional",
+                    "preparation_status": "pending",
                     "active_version": 1,
                     "merge_tags": [
                       {
@@ -2638,6 +2737,30 @@
                         ]
                       }
                     }
+                  },
+                  "invalid_purpose": {
+                    "summary": "Unknown purpose",
+                    "value": {
+                      "message": "Validation failed.",
+                      "error_code": "validation_error",
+                      "errors": {
+                        "purpose": [
+                          "The purpose must be either transactional or campaign."
+                        ]
+                      }
+                    }
+                  },
+                  "folder_purpose_mismatch": {
+                    "summary": "Folder belongs to the other module",
+                    "value": {
+                      "message": "Validation failed.",
+                      "error_code": "validation_error",
+                      "errors": {
+                        "folder_id": [
+                          "Folder 10 is a transactional folder and cannot hold a campaign template."
+                        ]
+                      }
+                    }
                   }
                 }
               }
@@ -2710,6 +2833,8 @@
                     "slug": "welcome-email",
                     "project_id": 5,
                     "folder_id": 10,
+                    "purpose": "transactional",
+                    "preparation_status": "ready",
                     "active_version": 2,
                     "versions_count": 3,
                     "created_at": "2025-01-15T10:00:00+00:00",
@@ -2955,7 +3080,7 @@
                 "update_json": {
                   "summary": "Update with new Topol JSON content",
                   "value": {
-                    "json": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
+                    "json": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
                   }
                 },
                 "update_name_and_content": {
@@ -2992,6 +3117,8 @@
                     "slug": "welcome-email",
                     "project_id": 5,
                     "folder_id": 10,
+                    "purpose": "transactional",
+                    "preparation_status": "pending",
                     "active_version": 2,
                     "merge_tags": [
                       {
@@ -3509,6 +3636,164 @@
                 "example": {
                   "success": false,
                   "message": "Template not found."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/folders": {
+      "get": {
+        "operationId": "listFolders",
+        "summary": "List Folders",
+        "description": "Retrieve a paginated list of the folders in a project, so a template can be filed into the right one.\n\nFolder IDs are what `folder_id` on `POST /templates` expects. Folders belong to a module: a `transactional` folder holds the templates you send single emails with, a `campaign` folder holds the ones the campaign builder can pick. A template's folder must belong to the same module as its `purpose`.",
+        "tags": [
+          "Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Project ID to retrieve folders from. If not provided, uses the team's default project.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "description": "Return only the folders of one module. If not provided, folders of both modules are returned.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "transactional",
+                "campaign"
+              ],
+              "example": "campaign"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page (1-100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folders retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListFoldersResponse"
+                },
+                "example": {
+                  "message": "Folders retrieved successfully.",
+                  "data": {
+                    "folders": [
+                      {
+                        "id": 10,
+                        "name": "Emails",
+                        "project_id": 5,
+                        "purpose": "transactional",
+                        "templates_count": 8,
+                        "created_at": "2025-01-15T10:00:00+00:00",
+                        "updated_at": "2025-01-20T14:30:00+00:00"
+                      },
+                      {
+                        "id": 11,
+                        "name": "Campaigns",
+                        "project_id": 5,
+                        "purpose": "campaign",
+                        "templates_count": 12,
+                        "created_at": "2025-01-15T10:00:00+00:00",
+                        "updated_at": "2025-02-02T09:12:00+00:00"
+                      }
+                    ],
+                    "pagination": {
+                      "total": 2,
+                      "per_page": 25,
+                      "current_page": 1,
+                      "last_page": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found or no default project configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "project_not_found": {
+                    "summary": "Project not found",
+                    "value": {
+                      "message": "Project with ID '123' was not found or you don't have access to it.",
+                      "error_code": "not_found"
+                    }
+                  },
+                  "no_default_project": {
+                    "summary": "No default project configured",
+                    "value": {
+                      "message": "No default project is configured for this team.",
+                      "error_code": "not_found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed.",
+                  "error_code": "validation_error",
+                  "errors": {
+                    "purpose": [
+                      "The purpose must be either transactional or campaign."
+                    ]
+                  }
                 }
               }
             }
@@ -6989,6 +7274,8 @@
         "description": "Error codes returned by the API.\n\n| Code | HTTP Status | Description |\n|------|-------------|-------------|\n| `validation_error` | 422 | Request validation failed. Check the `errors` object for field-specific messages. |\n| `invalid_domain` | 400 | The sender domain could not be determined from the email address. |\n| `unconfigured_domain` | 400 | The sender domain is not configured or approved for sending. |\n| `send_error` | 400, 500 | General error during email send preparation or domain registration. |\n| `retrieval_error` | 400, 500 | Failed to retrieve resources (e.g., sandbox key without associated user, upstream error). |\n| `transmission_failed` | 502 | Email transmission to the upstream provider failed. |\n| `resource_already_exists` | 409 | The resource (e.g., domain) already exists. |\n| `not_found` | 404 | The specified resource was not found. |\n| `template_not_found` | 404 | The specified template, project, or template version was not found. |\n| `insufficient_scope` | 403 | The API key does not have the required scope for this endpoint. |\n| `schedule_cancellation_failed` | 409, 500 | Could not cancel the scheduled transmission (already sent or upstream error). |\n| `quota_exceeded` | 429 | Monthly sending quota exceeded. Upgrade your plan to continue sending. |\n| `daily_quota_exceeded` | 429 | Daily sending quota exceeded. Try again tomorrow. |\n| `campaign_not_sendable` | 422 | The campaign cannot be sent in its current state (not a draft, or missing subject/sender/content). |\n| `campaign_not_scheduled` | 422 | The campaign is not scheduled, so it cannot be unscheduled. |",
         "enum": [
           "validation_error",
+          "idempotency_key_conflict",
+          "idempotency_in_progress",
           "invalid_domain",
           "unconfigured_domain",
           "send_error",
@@ -7180,15 +7467,21 @@
             "example": "valid"
           },
           "created_at": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "When the domain was created",
+            "description": "When the domain was created. Null for legacy records stored without a creation timestamp.",
             "example": "2024-01-15T10:30:00+00:00"
           },
           "updated_at": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "When the domain was last updated",
+            "description": "When the domain was last updated. Falls back to the creation timestamp, and is null when neither is stored.",
             "example": "2024-01-16T14:45:00+00:00"
           }
         }
@@ -7382,15 +7675,21 @@
             }
           },
           "created_at": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "When the domain was created",
+            "description": "When the domain was created. Null for legacy records stored without a creation timestamp.",
             "example": "2024-01-15T10:30:00+00:00"
           },
           "updated_at": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "description": "When the domain was last updated",
+            "description": "When the domain was last updated. Falls back to the creation timestamp, and is null when neither is stored.",
             "example": "2024-01-16T14:45:00+00:00"
           }
         }
@@ -7983,6 +8282,133 @@
           }
         }
       },
+      "ListFoldersResponse": {
+        "type": "object",
+        "description": "Response containing a paginated list of folders",
+        "required": [
+          "message",
+          "data"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable response message",
+            "example": "Folders retrieved successfully."
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "folders",
+              "pagination"
+            ],
+            "properties": {
+              "folders": {
+                "type": "array",
+                "description": "List of folders",
+                "items": {
+                  "$ref": "#/components/schemas/FolderView"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/FoldersPagination"
+              }
+            }
+          }
+        }
+      },
+      "FolderView": {
+        "type": "object",
+        "description": "View of a folder templates are filed into",
+        "required": [
+          "id",
+          "name",
+          "project_id",
+          "purpose",
+          "templates_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Unique identifier for the folder. This is what `folder_id` on `POST /templates` expects.",
+            "example": 10
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the folder",
+            "example": "Campaigns"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "ID of the project containing this folder",
+            "example": 5
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "description": "Module the folder belongs to. A template can only be filed into a folder of its own module.",
+            "example": "campaign"
+          },
+          "templates_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of templates in this folder",
+            "example": 12
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the folder was created",
+            "example": "2025-01-15T10:00:00+00:00"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the folder was last updated",
+            "example": "2025-01-20T14:30:00+00:00"
+          }
+        }
+      },
+      "FoldersPagination": {
+        "type": "object",
+        "description": "Pagination information for folders list",
+        "required": [
+          "total",
+          "per_page",
+          "current_page",
+          "last_page"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of folders",
+            "example": 2
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of folders per page",
+            "example": 25
+          },
+          "current_page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Current page number",
+            "example": 1
+          },
+          "last_page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Last page number",
+            "example": 1
+          }
+        }
+      },
       "ListTemplatesResponse": {
         "type": "object",
         "description": "Response containing a paginated list of templates",
@@ -8026,6 +8452,8 @@
           "slug",
           "project_id",
           "folder_id",
+          "purpose",
+          "preparation_status",
           "created_at",
           "updated_at"
         ],
@@ -8054,6 +8482,25 @@
             "type": "integer",
             "description": "ID of the folder containing this template",
             "example": 10
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "description": "Module the template belongs to. `transactional` templates are the ones you send single emails with; `campaign` templates are the ones the campaign builder can pick.",
+            "example": "campaign"
+          },
+          "preparation_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "description": "How far the template has got through preparation. Creating or updating a template through the API defers image migration and HTML rendering to a background job, so the template is `pending` until that finishes. On a create with JSON there is no HTML at all yet - the editor works (it reads the JSON) but sending and the screenshot do not. On an update the previous render stays in place, so the template remains sendable, but it is still serving the *old* content until this reads `ready`. `failed` means preparation exhausted its retries and will not become ready on its own. A template created from raw HTML is `ready` immediately.",
+            "example": "ready"
           },
           "created_at": {
             "type": "string",
@@ -8132,6 +8579,8 @@
           "slug",
           "project_id",
           "folder_id",
+          "purpose",
+          "preparation_status",
           "active_version",
           "versions_count",
           "created_at",
@@ -8162,6 +8611,25 @@
             "type": "integer",
             "description": "ID of the folder containing this template",
             "example": 10
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "description": "Module the template belongs to. `transactional` templates are the ones you send single emails with; `campaign` templates are the ones the campaign builder can pick.",
+            "example": "campaign"
+          },
+          "preparation_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "description": "How far the template has got through preparation. Creating or updating a template through the API defers image migration and HTML rendering to a background job, so the template is `pending` until that finishes. On a create with JSON there is no HTML at all yet - the editor works (it reads the JSON) but sending and the screenshot do not. On an update the previous render stays in place, so the template remains sendable, but it is still serving the *old* content until this reads `ready`. `failed` means preparation exhausted its retries and will not become ready on its own. A template created from raw HTML is `ready` immediately.",
+            "example": "ready"
           },
           "active_version": {
             "type": [
@@ -8229,7 +8697,7 @@
           "folder_id": {
             "type": "integer",
             "minimum": 1,
-            "description": "Folder ID to create the template in. If not provided, uses the first folder in the project.",
+            "description": "Folder ID to create the template in. Must belong to the same module as `purpose`. If not provided, the first folder of that module is used, and one is created when the project has none.",
             "example": 10
           },
           "html": {
@@ -8240,7 +8708,17 @@
           "json": {
             "type": "string",
             "description": "JSON content for Topol visual editor templates. Required if `html` is not provided. Mutually exclusive with `html`.",
-            "example": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
+            "example": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "default": "transactional",
+            "description": "Module the template belongs to. `transactional` templates are the ones you send single emails with; `campaign` templates are the ones the campaign builder can pick. Defaults to `transactional`.",
+            "example": "campaign"
           }
         }
       },
@@ -8300,7 +8778,7 @@
           "json": {
             "type": "string",
             "description": "New JSON content for Topol visual editor templates. Creates a new active version. Mutually exclusive with `html`.",
-            "example": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
+            "example": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
           }
         }
       },
@@ -8331,6 +8809,8 @@
           "slug",
           "project_id",
           "folder_id",
+          "purpose",
+          "preparation_status",
           "active_version",
           "merge_tags",
           "created_at",
@@ -8361,6 +8841,25 @@
             "type": "integer",
             "description": "ID of the folder containing this template",
             "example": 10
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "description": "Module the template belongs to. `transactional` templates are the ones you send single emails with; `campaign` templates are the ones the campaign builder can pick.",
+            "example": "campaign"
+          },
+          "preparation_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "description": "How far the template has got through preparation. Creating or updating a template through the API defers image migration and HTML rendering to a background job, so the template is `pending` until that finishes. On a create with JSON there is no HTML at all yet - the editor works (it reads the JSON) but sending and the screenshot do not. On an update the previous render stays in place, so the template remains sendable, but it is still serving the *old* content until this reads `ready`. `failed` means preparation exhausted its retries and will not become ready on its own. A template created from raw HTML is `ready` immediately.",
+            "example": "ready"
           },
           "active_version": {
             "type": "integer",
@@ -8397,6 +8896,8 @@
           "slug",
           "project_id",
           "folder_id",
+          "purpose",
+          "preparation_status",
           "active_version",
           "merge_tags",
           "created_at"
@@ -8426,6 +8927,25 @@
             "type": "integer",
             "description": "ID of the folder containing this template",
             "example": 10
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "transactional",
+              "campaign"
+            ],
+            "description": "Module the template belongs to. `transactional` templates are the ones you send single emails with; `campaign` templates are the ones the campaign builder can pick.",
+            "example": "campaign"
+          },
+          "preparation_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "description": "How far the template has got through preparation. Creating or updating a template through the API defers image migration and HTML rendering to a background job, so the template is `pending` until that finishes. On a create with JSON there is no HTML at all yet - the editor works (it reads the JSON) but sending and the screenshot do not. On an update the previous render stays in place, so the template remains sendable, but it is still serving the *old* content until this reads `ready`. `failed` means preparation exhausted its retries and will not become ready on its own. A template created from raw HTML is `ready` immediately.",
+            "example": "ready"
           },
           "active_version": {
             "type": "integer",
@@ -10752,6 +11272,7 @@
           "status",
           "properties",
           "created_at",
+          "paused_until",
           "lists",
           "topics"
         ],
@@ -10784,6 +11305,15 @@
             "type": "string",
             "format": "date-time",
             "example": "2024-01-15T10:30:00Z"
+          },
+          "paused_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "End of the contact's send pause, set from the unsubscribe page. While this is in the future the contact keeps status subscribed but campaigns are not delivered to them.",
+            "example": null
           },
           "lists": {
             "type": "array",
@@ -11438,6 +11968,17 @@
             ],
             "example": "Friend"
           },
+          "purpose": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "communication_language",
+              null
+            ],
+            "description": "Role the property is designated for. `communication_language` marks the property campaigns read the recipient language from; only one property per team can hold it."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -11515,6 +12056,17 @@
             ],
             "maxLength": 255,
             "example": "Friend"
+          },
+          "purpose": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "communication_language",
+              null
+            ],
+            "description": "Designate this property as the team's communication language. Assigning it takes the role away from whichever property held it before."
           }
         }
       },
@@ -11545,6 +12097,8 @@
           "not_ends_with",
           "is_true",
           "is_false",
+          "is_empty",
+          "is_not_empty",
           "greater_than",
           "greater_than_or_equal",
           "less_than",
@@ -11936,6 +12490,41 @@
                   "null"
                 ],
                 "description": "Rendered HTML content of the campaign email"
+              },
+              "language_overrides": {
+                "type": "object",
+                "description": "Per-language subject and sender overrides for a multi-language template, keyed by the template's language key. Absent fields fall back to the campaign's primary values.",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "from_email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    },
+                    "from_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reply_to": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    }
+                  }
+                }
               }
             }
           }

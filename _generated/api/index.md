@@ -5,12 +5,12 @@
 
 Base URL `https://app.lettr.com/api` · Auth `Authorization: Bearer $LETTR_API_KEY`
 
-Condensed from the OpenAPI spec — 39 paths. Request-body fields in **bold** are required. For full request/response schemas read the bundled [`openapi.json`](./openapi.json).
+Condensed from the OpenAPI spec — 40 paths. Request-body fields in **bold** are required. For full request/response schemas read the bundled [`openapi.json`](./openapi.json).
 
 ## Emails
 
 ### `POST /emails` — Send Email
-op: `sendEmail` · body: SendEmailRequest { **from**, from_name, subject, **to**, cc, bcc, reply_to, reply_to_name, html, text, amp_html, project_id, template_slug, template_version, tag, metadata, headers, substitution_data, options, attachments } · errors: 400, 401, 404, 422, 429, 500, 502
+op: `sendEmail` · body: SendEmailRequest { **from**, from_name, subject, **to**, cc, bcc, reply_to, reply_to_name, html, text, amp_html, project_id, template_slug, template_version, tag, metadata, headers, substitution_data, options, attachments } · errors: 400, 401, 404, 409, 422, 429, 500, 502
 
 ### `GET /emails` — List Sent Emails
 op: `listEmails` · errors: 400, 401, 422, 500
@@ -36,7 +36,7 @@ op: `cancelScheduledEmail` · errors: 401, 403, 409, 500
 op: `listTemplates` · errors: 401, 404, 422, 500
 
 ### `POST /templates` — Create Template
-op: `createTemplate` · body: CreateTemplateRequest { **name**, project_id, folder_id, html, json } · errors: 401, 404, 422, 500
+op: `createTemplate` · body: CreateTemplateRequest { **name**, project_id, folder_id, html, json, purpose } · errors: 401, 404, 422, 500
 
 ### `GET /templates/{slug}` — Get Template
 op: `getTemplate` · errors: 401, 404, 422, 500
@@ -52,6 +52,9 @@ op: `getTemplateMergeTags` · errors: 401, 404, 422, 500
 
 ### `GET /templates/html` — Get Template HTML
 op: `getTemplateHtml` · errors: 401, 404
+
+### `GET /folders` — List Folders
+op: `listFolders` · errors: 401, 404, 422
 
 ## Domains
 
@@ -168,7 +171,7 @@ op: `destroyAudienceTopic` · errors: 401, 403, 404, 500
 op: `listAudienceProperties` · errors: 401, 403, 422, 500
 
 ### `POST /audience/properties` — Create a property
-op: `createAudienceProperty` · body: StoreAudiencePropertyRequest { **name**, **type**, fallback_value } · errors: 401, 403, 409, 422, 500
+op: `createAudienceProperty` · body: StoreAudiencePropertyRequest { **name**, **type**, fallback_value, purpose } · errors: 401, 403, 409, 422, 500
 
 ### `GET /audience/properties/{propertyId}` — Show a property
 op: `showAudienceProperty` · errors: 401, 403, 404, 500
