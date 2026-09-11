@@ -24,14 +24,24 @@ A campaign is a one-to-many marketing send to an audience list/segment. **Campai
 
 If the user wants to *create* or *change content/audience* of a campaign, that's a dashboard task — tell them, don't look for an API that isn't there.
 
-## 3. Gotchas
+## 3. The template must be a campaign template
+
+A campaign can only send a template whose `purpose` is `campaign`. This is the most common way a campaign gets stuck, and it fails late: the template is created, the content is right, and the dashboard simply will not offer it when binding the campaign.
+
+`purpose` **cannot be changed after creation** — a transactional template has to be rebuilt as a campaign one, content and all.
+
+So when a user asks for a newsletter or promotion and you create the template for them, set `purpose: "campaign"` at creation time. See the `templates` skill, step 3. To check what already exists, list templates filtered by `purpose=campaign` — that returns exactly the set a campaign is able to use.
+
+A folder's purpose is separate: filing a template in a campaign folder does not make the template a campaign template.
+
+## 4. Gotchas
 
 - **Sending is irreversible and goes to real people.** Always confirm the target campaign's name, audience size, and content with the user before calling `send`. Prefer `schedule` (which can be cancelled) over `send` when there's any doubt.
 - **The audience must be ready first.** A campaign sends to whatever list/segment it's bound to. If that audience needs building or cleaning, do it in the `audience` skill before sending.
 - **`scheduled_at` is a timestamp** — confirm the timezone interpretation with the user; an off-by-timezone schedule sends at the wrong hour.
-- **Idempotency:** don't retry a `send` blindly on a network error — re-fetch the campaign status first to see whether it already started.
+- **Idempotency:** don't retry a `send` blindly on a network error — re-fetch the campaign status first to see whether it already started. The idempotency keys described in the `sending` skill cover transactional sends (`POST /emails`), **not** campaign sends; there is no key to pass here, so status is the only check.
 
-## 4. After sending
+## 5. After sending
 
 Report the campaign id and scheduled/sent status. For results, poll `GET /campaigns/{id}/events` (opens, clicks, bounces). Delivery problems on individual recipients are the `diagnose` skill.
 

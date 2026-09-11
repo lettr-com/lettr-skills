@@ -25,7 +25,7 @@ Never invent method names from memory — the generated reference is the source 
 | Content managed in Lettr (merge tags) | template send — pair with the `templates` skill |
 | Same content to many recipients | put up to 50 addresses in `to` (one API call delivers a separate copy to each); `substitution_data` applies to the whole batch, not per-recipient |
 | More than 50 recipients | chunk into batches of ≤50 and send a separate call per batch — sequentially or in parallel, staying under 3 req/s. There is no bulk endpoint; looping batches is the intended pattern |
-| Must not double-send on retry | **Lettr has no server-side idempotency.** Guard in your own code: check a DB flag or cache key derived from the business event (e.g. `order-confirmation-{orderId}`) *before* sending, and record the returned `request_id` after. There is no `idempotency_key` field — passing one is silently discarded, not rejected. Put the key in `metadata` if you want it traceable later |
+| Must not double-send on retry | Pass an **idempotency key** derived from the business event (e.g. `order-confirmation-{orderId}`) and reuse the *same* value on every retry — the API returns the original result instead of sending again. See §3a. You no longer need a DB flag or cache key for this |
 | Send later | `POST /emails/scheduled` — keep the returned `transmissionId` to cancel |
 
 ## 3. Preconditions that cause most failures
@@ -34,6 +34,20 @@ Never invent method names from memory — the generated reference is the source 
 - **50 recipients max per call, counted across `to` + `cc` + `bcc` combined** (not 50 each). More than that → batch (see the table above).
 - **Quota is charged per recipient on the same `to` + `cc` + `bcc` basis** — a 50-address call costs 50, not 1. If you're adding a fixed `bcc` (an archive or audit address) to every send, say so out loud: it doubles the user's quota consumption. Enforcement is all-or-nothing, so a call that would cross the limit is rejected entirely rather than partially delivered.
 - **`transactional` defaults to `true` — you must opt *out*.** It bypasses unsubscribe suppression, which is correct for password resets and receipts. For anything a user can opt out of, explicitly set `options.transactional: false`; leaving it unset sends to unsubscribed contacts.
+
+## 3a. Retrying safely: idempotency keys
+
+A timeout tells you nothing about whether the email went out. The send may well have succeeded and only the response was lost, so a blind retry delivers twice.
+
+Pass an idempotency key and the retry is safe: reusing a key returns the original result rather than sending again.
+
+- **Derive the key from the business event** — `order-4417-receipt`, `invoice-2026-03-payment-failed`. **Never** from a timestamp, a UUID, or anything random: those differ on the retry, which is precisely when the key has to match, and a fresh key makes the mechanism a no-op.
+- **The key is yours.** No SDK invents one for you — except `lettr-laravel`, which derives one per queued job so that a job retry does not re-send. Everywhere else, if you did not pass a key there is no protection.
+- **Read the replay flag.** Responses expose whether the result was replayed (`replayed` in Node/Rust/PHP, `Replayed` in Go, equivalent elsewhere). `replayed: true` means no second email went out — that is a **success**, not an error. Log it differently, don't treat it as a failure.
+- **Scope:** keys are held 24 hours and are scoped per team *and* API key. The same string through a different API key is a different key.
+- **Two 409s, opposite reactions.** `idempotency_in_progress` means an earlier send with this key is still running — retry with the **same** key after `Retry-After` seconds. `idempotency_key_conflict` means the key was already used with a *different* payload — **never** retry it; it will fail identically forever. Use a new key, or resend the original payload.
+
+The old guidance — guard with your own DB flag or cache key — is no longer necessary for this. It is still reasonable if you want a business-level record of what was sent, but it is not what stops a duplicate.
 
 ## 4. Wrap the send in error handling
 

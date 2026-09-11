@@ -2488,7 +2488,7 @@
                   "summary": "Create with Topol JSON",
                   "value": {
                     "name": "Welcome Email",
-                    "json": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
+                    "json": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
                   }
                 },
                 "with_html": {
@@ -2955,7 +2955,7 @@
                 "update_json": {
                   "summary": "Update with new Topol JSON content",
                   "value": {
-                    "json": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
+                    "json": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
                   }
                 },
                 "update_name_and_content": {
@@ -8240,7 +8240,7 @@
           "json": {
             "type": "string",
             "description": "JSON content for Topol visual editor templates. Required if `html` is not provided. Mutually exclusive with `html`.",
-            "example": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
+            "example": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
           }
         }
       },
@@ -8300,7 +8300,7 @@
           "json": {
             "type": "string",
             "description": "New JSON content for Topol visual editor templates. Creates a new active version. Mutually exclusive with `html`.",
-            "example": "{\"tagName\":\"mj-container\",\"children\":[{\"tagName\":\"mj-text\",\"content\":\"Hello {{FIRST_NAME}}!\"}]}"
+            "example": "{\"tagName\":\"mj-global-style\",\"attributes\":{\"mj-text\":{\"font-size\":\"15px\",\"line-height\":\"1.5\"}},\"children\":[{\"tagName\":\"mj-body\",\"attributes\":{\"background-color\":\"#FFFFFF\",\"width\":\"600px\"},\"children\":[{\"tagName\":\"mj-section\",\"attributes\":{\"padding\":\"20px 0\"},\"children\":[{\"tagName\":\"mj-column\",\"attributes\":{\"width\":\"100%\"},\"children\":[{\"tagName\":\"mj-text\",\"attributes\":{},\"children\":[],\"content\":\"<p>Hello {{FIRST_NAME}}!</p>\"}]}]}]}]}"
           }
         }
       },
