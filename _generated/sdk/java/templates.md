@@ -47,12 +47,16 @@ CreateTemplateResponse response = lettr.templates().create(
     CreateTemplateOptions.builder()
         .name("Welcome Email")
         .html("<p>Hello {{FIRST_NAME}}!</p>")
-        .projectId(5)    // optional
-        .folderId(10)    // optional
+        .projectId(5)                            // optional
+        .folderId(10)                            // optional
+        .purpose(TemplatePurpose.CAMPAIGN)       // optional; TRANSACTIONAL by default
         .build()
 );
 System.out.println("Slug: " + response.getSlug());
 ```
+
+> **Warning:**
+> **`purpose` is set once and cannot be changed.** Omit it and you get a transactional template, which a [campaign](https://docs.lettr.com/learn/campaigns/introduction) cannot use — and `purpose` is not accepted by the update endpoint, so the only remedy is to copy the template in the app. If the content is going to an audience, set it now. See [Transactional vs. Marketing Templates](https://docs.lettr.com/learn/templates/projects#transactional-vs-marketing-templates).
 
 ## Update & Delete
 

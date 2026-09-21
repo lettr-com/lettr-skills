@@ -32,7 +32,7 @@ After the call returns a `request_id`:
 
 ## Schedule a delayed send if the test path needs lag
 
-The scheduled-send endpoint accepts a future timestamp 5 min – 3 days out. Useful when verifying a drip flow without waiting for the real trigger.
+The scheduled-send endpoint accepts a future timestamp 5 min – 30 days out. Useful when verifying a drip flow without waiting for the real trigger. Cancel it afterwards with the `sch_` request id rather than letting it fire.
 
 ## Don't open-loop
 

@@ -178,24 +178,29 @@ Use this method to:
 
 ```php
 use Lettr\Dto\Template\CreateTemplateData;
+use Lettr\Enums\TemplatePurpose;
 
 // With HTML content
 $template = $lettr->templates()->create(new CreateTemplateData(
     name: 'My Template',
-    slug: 'my-template',
     projectId: 123,
     html: '<html>...</html>',   // provide html OR json, not both
 ));
 
-// Or with TOPOL.io JSON format
+// A marketing template, the only kind a campaign can use
 $template = $lettr->templates()->create(new CreateTemplateData(
-    name: 'My Template',
-    json: '{"blocks":[]}',      // TOPOL.io editor JSON
+    name: 'March newsletter',
+    html: '<html>...</html>',
+    purpose: TemplatePurpose::Campaign,
 ));
 
 echo $template->id;
-echo $template->slug;
+echo $template->slug;      // generated from the name; you do not supply one
+echo $template->purpose->value;
 ```
+
+> **Warning:**
+> **`purpose` is set once and cannot be changed.** Omit it and you get a transactional template, which a [campaign](https://docs.lettr.com/learn/campaigns/introduction) cannot use — and `purpose` is not accepted by the update endpoint, so the only remedy is to copy the template in the app. If the content is going to an audience, set it now. See [Transactional vs. Marketing Templates](https://docs.lettr.com/learn/templates/projects#transactional-vs-marketing-templates).
 
 Creating templates programmatically is useful for:
 - Migrating templates from another email service

@@ -73,14 +73,43 @@ php artisan lettr:pull
 ```
 
 Options:
-- `--template=slug` - Pull a specific template
+- `--template=slug` - Pull a specific template. Exits with a failure code if it doesn't exist
 - `--as-html` - Save as HTML instead of Blade
-- `--with-mailables` - Also generate Mailable classes
+- `--with-mailables` - Also generate Mailable and DTO classes
+- `--skip-templates` - With `--with-mailables`, generate only DTOs and Mailables, without downloading templates
+- `--dry-run` - Preview what would be downloaded without writing files
 
 By default, templates are saved as Blade files to `resources/views/emails/lettr/`. HTML files go to `resources/templates/lettr/`. Both paths are configurable in `config/lettr.php`.
 
+When converting to Blade, merge tags become variables (`{{first_name}}` → `{{ $first_name }}`) and loops become null-safe `@foreach` blocks whose items are read as arrays (`{{#each items}}{{this.name}}` → `@foreach($items ?? [] as $item){{ $item['name'] }}`), which is the shape generated DTOs pass to the view.
+
 > **Tip:**
-> Use `--with-mailables` to generate ready-to-use Mailable classes alongside the templates. This is the fastest way to scaffold email classes from your existing Lettr templates.
+> Use `--with-mailables` to generate ready-to-use Mailable classes alongside the templates. This is the fastest way to scaffold email classes from your existing Lettr templates. See [Mailable Classes](https://docs.lettr.com/quickstart/laravel/type-safety#mailable-classes) for the two kinds of Mailable it can generate.
+
+## Push Templates to Lettr
+
+Upload local Blade templates to Lettr, creating them if they do not exist:
+
+```bash
+php artisan lettr:push
+```
+
+Without `--path`, the command looks for templates in `blade_path` from `config/lettr.php` (where `lettr:pull` saves them), then in `resources/views/emails`, `mails`, `email` and `mail`, and asks before using a folder.
+
+Options:
+- `--path=` - Custom path to the templates directory, absolute or relative to your project root
+- `--template=filename` - Push only one template
+- `--purpose=` - Module to create the templates in: `transactional` (default) or `campaign`
+- `--dry-run` - Preview what would be created without pushing
+
+To push marketing templates that campaigns can pick:
+
+```bash
+php artisan lettr:push --purpose=campaign
+```
+
+> **Warning:**
+> **`purpose` applies to templates being created, and cannot be changed afterwards.** Push without it and you get transactional templates, which a [campaign](https://docs.lettr.com/learn/campaigns/introduction) cannot use — the update endpoint does not accept `purpose`, so the only remedy is to copy each one in the app. Pushing a newsletter set? Pass `--purpose=campaign` the first time. See [Transactional vs. Marketing Templates](https://docs.lettr.com/learn/templates/projects#transactional-vs-marketing-templates).
 
 ## Listing Templates
 
@@ -96,14 +125,19 @@ foreach ($response->templates as $template) {
 }
 ```
 
-Get a specific template:
+Get a specific template and its merge tags:
 
 ```php
 $template = Lettr::templates()->get('welcome-email');
 
 echo $template->name;
 echo $template->activeVersion;
-print_r($template->mergeTags);
+
+$response = Lettr::templates()->getMergeTags('welcome-email', version: $template->activeVersion);
+
+foreach ($response->mergeTags as $mergeTag) {
+    echo $mergeTag->key . ($mergeTag->required ? ' (required)' : '');
+}
 ```
 
-The `mergeTags` property returns an array of merge tag names defined in the template, which is useful for validating your substitution data before sending.
+Each merge tag has a `key`, a `required` flag, a `type`, and `children` for loop blocks, which is useful for validating your substitution data before sending.

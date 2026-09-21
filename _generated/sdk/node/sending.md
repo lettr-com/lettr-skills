@@ -102,7 +102,7 @@ await client.emails.send({
 
 ## Scheduling
 
-Pass an ISO-8601 `scheduled_at` to schedule a send, then manage it by transmission id:
+Pass an ISO-8601 `scheduled_at` to schedule a send, between 5 minutes and 30 days out. Lettr holds the email until it is due, so it can be read back and cancelled the whole time it is waiting:
 
 ```typescript
 const { data } = await client.emails.schedule({
@@ -116,7 +116,17 @@ const { data } = await client.emails.schedule({
 // Look up or cancel later
 await client.emails.getScheduled(data!.request_id);
 await client.emails.cancelScheduled(data!.request_id);
+
+// Or find it again without having kept the id
+const { data: page } = await client.emails.listScheduled({ status: "scheduled" });
 ```
+
+> **Warning:**
+> A scheduled email has **two ids**. `request_id` (prefixed `sch_`) addresses the
+> email and is what `getScheduled` and `cancelScheduled` take. `transmission_id`
+> is the sending provider's id — it is `null` until the email actually sends, and
+> it is the value that appears on **webhook events**. Use `transmission_id` to
+> correlate webhooks, and `request_id` for everything else.
 
 ## Error Handling
 

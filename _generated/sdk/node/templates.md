@@ -40,14 +40,18 @@ Provide `html` **or** `json` (the TOPOL.io editor format), not both:
 const { data, error } = await client.templates.create({
   name: "My Template",
   html: "<html>...</html>",
-  project_id: 123,   // optional
-  folder_id: 5,      // optional
+  project_id: 123,          // optional
+  folder_id: 5,             // optional
+  purpose: "campaign",      // optional; "transactional" by default
 });
 
 if (!error) {
   console.log(data.id, data.slug, data.active_version);
 }
 ```
+
+> **Warning:**
+> **`purpose` is set once and cannot be changed.** Omit it and you get a transactional template, which a [campaign](https://docs.lettr.com/learn/campaigns/introduction) cannot use — and `purpose` is not accepted by the update endpoint, so the only remedy is to copy the template in the app. If the content is going to an audience, set it now. See [Transactional vs. Marketing Templates](https://docs.lettr.com/learn/templates/projects#transactional-vs-marketing-templates).
 
 ## Update & Delete
 
