@@ -28,7 +28,7 @@ Before you begin, make sure you have:
 
 You'll also need:
 
-- **Rust 1.70 or later** installed (via rustup)
+- **Rust 1.85 or later** installed (via rustup)
 - A verified sending domain in your [Lettr dashboard](https://app.lettr.com/domains)
 
 ## Quick Setup
@@ -168,9 +168,9 @@ let client = Lettr::with_base_url("your-api-key", "https://app.lettr.com/api");
 ```
 
 > **Note:**
-> Injecting your own `reqwest::Client` — and therefore setting custom timeouts,
-> proxies, or connection-pool settings — is **not currently supported**. If you
-> need it, open an issue on
+> Requests time out after 30 seconds. Injecting your own `reqwest::Client` — and
+> therefore changing that timeout, or setting proxies or connection-pool
+> settings — is **not currently supported**. If you need it, open an issue on
 > [lettr-rust](https://github.com/lettr-com/lettr-rust).
 
 ### Blocking usage

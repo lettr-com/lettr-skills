@@ -628,7 +628,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "Cursor for pagination. Use the `next_cursor` value from the previous response.",
+            "description": "Cursor for pagination. Use the `next_cursor` value from the previous response. Any other value fails with a 422.",
             "required": false,
             "schema": {
               "type": "string"
@@ -647,7 +647,7 @@
           {
             "name": "from",
             "in": "query",
-            "description": "Filter emails sent after this date (ISO 8601). Defaults to 10 days ago.",
+            "description": "Only emails sent at or after this time (ISO 8601). Defaults to 10 days ago. Sent emails are kept for about 10 days, so an earlier date is pulled forward; `from` in the response shows the window actually covered.",
             "required": false,
             "schema": {
               "type": "string",
@@ -657,7 +657,7 @@
           {
             "name": "to",
             "in": "query",
-            "description": "Filter emails sent before this date (ISO 8601).",
+            "description": "Only emails sent before this time (ISO 8601, exclusive). Must be after `from`, otherwise the request fails with a 422.",
             "required": false,
             "schema": {
               "type": "string",
@@ -863,7 +863,7 @@
             "name": "from",
             "in": "query",
             "required": false,
-            "description": "Start date for the event search range. Defaults to 10 days ago if not provided.",
+            "description": "Start of the event search range (ISO 8601, inclusive). Defaults to 10 days ago. Events are kept for about 10 days, so an earlier date is pulled forward; `from` in the response shows the window actually covered.",
             "schema": {
               "type": "string",
               "format": "date",
@@ -874,7 +874,7 @@
             "name": "to",
             "in": "query",
             "required": false,
-            "description": "End date for the event search range. Defaults to now if not provided.",
+            "description": "End of the event search range (ISO 8601, exclusive). Defaults to now. Must be after `from`, otherwise the request fails with a 422.",
             "schema": {
               "type": "string",
               "format": "date",
@@ -898,7 +898,7 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Pagination cursor returned from a previous request.",
+            "description": "Pagination cursor: the `next_cursor` value from the previous response. Any other value fails with a 422.",
             "schema": {
               "type": "string"
             }
@@ -1169,7 +1169,7 @@
       "post": {
         "operationId": "scheduleEmail",
         "summary": "Schedule Email",
-        "description": "Schedule a transactional email for future delivery. Accepts the same payload as `POST /emails` with an additional required `scheduled_at` field. The email must be scheduled at least 5 minutes in the future and within 3 days.",
+        "description": "Schedule a transactional email for future delivery. Accepts the same payload as `POST /emails` with an additional required `scheduled_at` field. The email must be scheduled at least 5 minutes in the future and within 30 days.\n\n**Breaking change.** Scheduled emails are no longer parked inside SparkPost with `options.start_time` — SparkPost retired its per-transmission GET and DELETE endpoints, so Lettr now holds the email in its own store and injects it into SparkPost only when it is due. `request_id` is therefore Lettr's own id, prefixed `sch_` (for example `sch_01JQZ3N2K8XW9V6M4TBRC7YHDE`), and it is the id you pass to `GET` and `DELETE /emails/scheduled/{transmissionId}`. SparkPost's transmission id is now the separate `transmission_id` field, which is `null` until the email is actually injected; that is the value that appears as `transmission_id` on your webhook events, so use it to correlate webhooks. `state` values are now Lettr's own (`scheduled`, `sending`, `sent`, `cancelled`, `failed`) rather than SparkPost's pass-through states.\n\n`Idempotency-Key` is **not** honoured here and is ignored if sent — it applies to `POST /emails` only. A scheduled email is created once and then listed, read or cancelled by the `request_id` returned here, so use that to check whether a retry is needed.",
         "tags": [
           "Emails"
         ],
@@ -1252,14 +1252,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SendEmailSuccessResponse"
+                  "type": "object",
+                  "required": [
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Email scheduled for delivery."
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduledEmailResponse"
+                    }
+                  }
                 },
                 "example": {
                   "message": "Email scheduled for delivery.",
                   "data": {
-                    "request_id": "12345678901234567890",
+                    "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                    "transmission_id": null,
+                    "state": "scheduled",
+                    "scheduled_at": "2024-01-16T10:00:00Z",
+                    "from": "sender@example.com",
+                    "from_name": "Sender Name",
+                    "subject": "Scheduled Newsletter",
+                    "recipients": [
+                      "recipient@example.com"
+                    ],
+                    "num_recipients": 1,
                     "accepted": 1,
-                    "rejected": 0
+                    "rejected": 0,
+                    "tag": null,
+                    "failure_reason": null,
+                    "events": []
                   }
                 }
               }
@@ -1348,13 +1374,149 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listScheduledEmails",
+        "summary": "List Scheduled Emails",
+        "description": "List the scheduled emails of your team, newest first. Requires the `emails:read` scope.\n\nThis endpoint is new: listing was previously impossible because SparkPost's transmission list endpoint returns 404. Lettr now holds scheduled emails in its own store, so they can be listed, read back and cancelled at any point before they are injected.\n\nA sandbox key only sees the emails it scheduled itself.",
+        "tags": [
+          "Emails"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scheduled",
+                "sending",
+                "sent",
+                "cancelled",
+                "failed"
+              ]
+            },
+            "description": "Filter by scheduled email state"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page (1-100). Defaults to 25.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number. Defaults to 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scheduled emails retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListScheduledEmailsResponse"
+                },
+                "example": {
+                  "message": "Scheduled emails retrieved successfully.",
+                  "data": {
+                    "scheduled_emails": [
+                      {
+                        "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                        "transmission_id": null,
+                        "state": "scheduled",
+                        "scheduled_at": "2024-01-16T10:00:00Z",
+                        "from": "sender@example.com",
+                        "from_name": "Sender Name",
+                        "subject": "Scheduled Newsletter",
+                        "recipients": [
+                          "recipient@example.com"
+                        ],
+                        "num_recipients": 1,
+                        "accepted": 1,
+                        "rejected": 0,
+                        "tag": null,
+                        "failure_reason": null,
+                        "events": []
+                      }
+                    ],
+                    "pagination": {
+                      "total": 1,
+                      "per_page": 25,
+                      "current_page": 1,
+                      "last_page": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "message": "Validation failed.",
+                  "error_code": "validation_error",
+                  "errors": {
+                    "per_page": [
+                      "The per_page parameter must not exceed 100."
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "Failed to list scheduled emails. Please try again later.",
+                  "error_code": "retrieval_error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/emails/scheduled/{transmissionId}": {
       "get": {
         "operationId": "showScheduledEmail",
         "summary": "Get Scheduled Email",
-        "description": "Retrieve details of a scheduled email transmission by its transmission ID. If the transmission is still pending, returns the scheduled state. If the transmission has already been processed by SparkPost, automatically falls back to returning delivery events with the same response shape.",
+        "description": "Retrieve a scheduled email by the `request_id` returned when it was scheduled (`sch_...`).\n\n**Breaking change.** Scheduled emails are no longer parked inside SparkPost with `options.start_time`, because SparkPost retired its per-transmission GET endpoint. Lettr now answers from its own store, so the response is correct the instant the email is scheduled and a cancelled email can be told apart from one that never existed. `request_id` is Lettr's own `sch_...` id, SparkPost's id is the separate `transmission_id` field (`null` until the email is injected, and the value that appears as `transmission_id` on your webhook events), and `state` is one of `scheduled`, `sending`, `sent`, `cancelled` or `failed`.\n\nFor emails scheduled **before** this change there is no Lettr record, only the SparkPost transmission id you stored. Those ids are still accepted and fall back to a delivery-events lookup, which returns the **old** response shape (`ShowScheduledTransmissionResponse`, with SparkPost's pass-through `state` values and no `request_id`).\n\nA sandbox key only sees the emails it scheduled itself.",
         "tags": [
           "Emails"
         ],
@@ -1368,30 +1530,52 @@
             "name": "transmissionId",
             "in": "path",
             "required": true,
-            "description": "The transmission ID returned when the email was scheduled.",
+            "description": "The `request_id` returned when the email was scheduled (`sch_...`). A bare SparkPost transmission id is also accepted, for emails scheduled before Lettr owned the schedule; those return the legacy response shape.",
             "schema": {
               "type": "string",
-              "example": "12345678901234567890"
+              "example": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Scheduled transmission retrieved successfully",
+            "description": "Scheduled transmission retrieved successfully. Returns the scheduled email when Lettr knows the id, or the legacy events-derived shape for a SparkPost transmission id from before this change.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ShowScheduledTransmissionResponse"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "description": "Returned for a `sch_...` id that Lettr knows about.",
+                      "required": [
+                        "message",
+                        "data"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "Scheduled transmission retrieved successfully."
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/ScheduledEmailResponse"
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/ShowScheduledTransmissionResponse"
+                    }
+                  ]
                 },
                 "examples": {
-                  "pending": {
-                    "summary": "Still scheduled (pending delivery)",
+                  "scheduled": {
+                    "summary": "Waiting for its delivery time",
                     "value": {
                       "message": "Scheduled transmission retrieved successfully.",
                       "data": {
-                        "transmission_id": "12345678901234567890",
-                        "state": "submitted",
-                        "scheduled_at": "2024-01-16T10:00:00+00:00",
+                        "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                        "transmission_id": null,
+                        "state": "scheduled",
+                        "scheduled_at": "2024-01-16T10:00:00Z",
                         "from": "sender@example.com",
                         "from_name": "Sender Name",
                         "subject": "Scheduled Newsletter",
@@ -1399,12 +1583,79 @@
                           "recipient@example.com"
                         ],
                         "num_recipients": 1,
+                        "accepted": 1,
+                        "rejected": 0,
+                        "tag": null,
+                        "failure_reason": null,
                         "events": []
                       }
                     }
                   },
-                  "delivered": {
-                    "summary": "Already processed (delivery events returned)",
+                  "sent": {
+                    "summary": "Injected into SparkPost (delivery events populated)",
+                    "value": {
+                      "message": "Scheduled transmission retrieved successfully.",
+                      "data": {
+                        "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                        "transmission_id": "12345678901234567890",
+                        "state": "sent",
+                        "scheduled_at": "2024-01-16T10:00:00Z",
+                        "from": "sender@example.com",
+                        "from_name": "Sender Name",
+                        "subject": "Scheduled Newsletter",
+                        "recipients": [
+                          "recipient@example.com"
+                        ],
+                        "num_recipients": 1,
+                        "accepted": 1,
+                        "rejected": 0,
+                        "tag": null,
+                        "failure_reason": null,
+                        "events": [
+                          {
+                            "event_id": "evt-delivery-1",
+                            "type": "delivery",
+                            "timestamp": "2024-01-16T10:00:02.000Z",
+                            "request_id": "12345678901234567890",
+                            "rcpt_to": "recipient@example.com",
+                            "raw_rcpt_to": "recipient@example.com",
+                            "recipient_domain": "example.com",
+                            "mailbox_provider": "Gmail",
+                            "mailbox_provider_region": "Global",
+                            "subject": "Scheduled Newsletter",
+                            "friendly_from": "sender@example.com",
+                            "queue_time": 500
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "cancelled": {
+                    "summary": "Cancelled before injection",
+                    "value": {
+                      "message": "Scheduled transmission retrieved successfully.",
+                      "data": {
+                        "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                        "transmission_id": null,
+                        "state": "cancelled",
+                        "scheduled_at": "2024-01-16T10:00:00Z",
+                        "from": "sender@example.com",
+                        "from_name": "Sender Name",
+                        "subject": "Scheduled Newsletter",
+                        "recipients": [
+                          "recipient@example.com"
+                        ],
+                        "num_recipients": 1,
+                        "accepted": 1,
+                        "rejected": 0,
+                        "tag": null,
+                        "failure_reason": null,
+                        "events": []
+                      }
+                    }
+                  },
+                  "legacy": {
+                    "summary": "Legacy SparkPost transmission id (old response shape, from delivery events)",
                     "value": {
                       "message": "Scheduled transmission retrieved successfully.",
                       "data": {
@@ -1482,7 +1733,7 @@
       "delete": {
         "operationId": "cancelScheduledEmail",
         "summary": "Cancel Scheduled Email",
-        "description": "Cancel a scheduled email transmission before it is sent. Once the scheduled delivery time has passed, the transmission can no longer be cancelled.",
+        "description": "Cancel a scheduled email before it is injected into SparkPost, and return the cancelled email.\n\n**Breaking change.** Cancellation used to be delegated to SparkPost's per-transmission DELETE endpoint, which SparkPost retired — the call failed every time. Lettr now owns the schedule, so a cancellation either genuinely stops the send or says truthfully that it could not.\n\nOnly an email in state `scheduled` can be cancelled. Once the dispatcher has claimed it (`sending`), or it has already been injected (`sent`) or cancelled (`cancelled`), the request fails with `409 schedule_cancellation_failed` — SparkPost offers no per-message recall after injection.\n\nA sandbox key can only cancel the emails it scheduled itself.",
         "tags": [
           "Emails"
         ],
@@ -1496,20 +1747,54 @@
             "name": "transmissionId",
             "in": "path",
             "required": true,
-            "description": "The transmission ID returned when the email was scheduled.",
+            "description": "The `request_id` returned when the email was scheduled (`sch_...`). A bare SparkPost transmission id is also accepted, for emails scheduled before Lettr owned the schedule.",
             "schema": {
               "type": "string",
-              "example": "12345678901234567890"
+              "example": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Scheduled transmission cancelled successfully",
+            "description": "Scheduled transmission cancelled successfully. The email was never handed to SparkPost.",
             "content": {
               "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Scheduled transmission cancelled successfully."
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduledEmailResponse"
+                    }
+                  }
+                },
                 "example": {
-                  "message": "Scheduled transmission cancelled successfully."
+                  "message": "Scheduled transmission cancelled successfully.",
+                  "data": {
+                    "request_id": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE",
+                    "transmission_id": null,
+                    "state": "cancelled",
+                    "scheduled_at": "2024-01-16T10:00:00Z",
+                    "from": "sender@example.com",
+                    "from_name": "Sender Name",
+                    "subject": "Scheduled Newsletter",
+                    "recipients": [
+                      "recipient@example.com"
+                    ],
+                    "num_recipients": 1,
+                    "accepted": 1,
+                    "rejected": 0,
+                    "tag": null,
+                    "failure_reason": null,
+                    "events": []
+                  }
                 }
               }
             }
@@ -1520,15 +1805,29 @@
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
           },
-          "409": {
-            "description": "Cancellation failed (transmission already sent or not found)",
+          "404": {
+            "description": "Scheduled transmission not found. The id is unknown, or it belongs to another team or another sandbox key.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "message": "Failed to cancel scheduled transmission trans-123.",
+                  "message": "Scheduled transmission not found.",
+                  "error_code": "not_found"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The email can no longer be cancelled: it has already been sent, was already cancelled, or is being injected right now.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "This email has already been sent and can no longer be cancelled.",
                   "error_code": "schedule_cancellation_failed"
                 }
               }
@@ -1613,7 +1912,7 @@
       "post": {
         "operationId": "createDomain",
         "summary": "Create Domain",
-        "description": "Register a new sending domain with your account. The domain will be created with SparkPost and stored as approved by default, unless global domain reputation marks it for review or blacklist.",
+        "description": "Register a new sending domain with your account. The domain will be created with SparkPost and stored as approved by default, unless global domain reputation marks it for review or blacklist. Adding a domain your team already has returns `409` and leaves its DNS records and verification status unchanged.",
         "tags": [
           "Domains"
         ],
@@ -4032,7 +4331,7 @@
       "delete": {
         "operationId": "bulkDestroyAudienceLists",
         "summary": "Bulk delete audience lists",
-        "description": "Delete up to 50 lists in a single request. All `list_ids` must belong to the authenticated team. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "description": "Delete up to 50 lists in a single request. All `list_ids` must belong to the authenticated team. If any list has segments restricted to it, nothing is deleted and the response is `409` `list_in_use`. Requires the `audience:write` scope and is blocked for sandbox API keys.",
         "tags": [
           "Audience"
         ],
@@ -4067,6 +4366,20 @@
           },
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
+          },
+          "409": {
+            "description": "The list is used by segments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "The list cannot be deleted: \"VIP\" is used by segment \"VIP openers\". Remove the list restriction from those segments or delete them first.",
+                  "error_code": "list_in_use"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation error",
@@ -4230,7 +4543,7 @@
       "delete": {
         "operationId": "destroyAudienceList",
         "summary": "Delete an audience list",
-        "description": "Permanently delete an audience list. Requires the `audience:write` scope and is blocked for sandbox API keys.",
+        "description": "Permanently delete an audience list. A list that segments are restricted to cannot be deleted (`409` `list_in_use`): remove the restriction from those segments or delete them first. Requires the `audience:write` scope and is blocked for sandbox API keys.",
         "tags": [
           "Audience"
         ],
@@ -4272,6 +4585,20 @@
                 "example": {
                   "message": "List not found.",
                   "error_code": "not_found"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The list is used by segments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "message": "The list cannot be deleted: \"VIP\" is used by segment \"VIP openers\". Remove the list restriction from those segments or delete them first.",
+                  "error_code": "list_in_use"
                 }
               }
             }
@@ -6619,7 +6946,7 @@
             }
           },
           "422": {
-            "description": "Precondition failed. `campaign_not_sendable` when the campaign is not a draft or is missing a subject, sender, or content; `campaign_has_pending_schedule` when the campaign already has a future scheduled delivery time (unschedule it first, or use the schedule endpoint).",
+            "description": "Precondition failed. `campaign_not_sendable` when the campaign is not a draft or is missing a subject, sender, or content; `campaign_has_pending_schedule` when the campaign already has a future scheduled delivery time (unschedule it first to send now — this also clears a time staged on a draft — or use the schedule endpoint to confirm it).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6765,7 +7092,7 @@
       "post": {
         "operationId": "unscheduleCampaign",
         "summary": "Unschedule a campaign",
-        "description": "Cancels a scheduled send, returning the campaign to `draft`. The campaign must currently be `scheduled`. Requires the `campaigns:write` scope. Not available to sandbox keys.",
+        "description": "Cancels a scheduled send, returning the campaign to `draft`. Also clears a delivery time staged on a `draft` in the web editor, so the draft can then be sent with the send endpoint. The campaign must be `scheduled`, or a `draft` with a staged delivery time. Requires the `campaigns:write` scope. Not available to sandbox keys.",
         "tags": [
           "Campaigns"
         ],
@@ -6826,7 +7153,7 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "message": "Only scheduled campaigns can be unscheduled.",
+                  "message": "Only scheduled campaigns, or drafts with a staged delivery time, can be unscheduled.",
                   "error_code": "campaign_not_scheduled"
                 }
               }
@@ -7271,7 +7598,7 @@
       },
       "ErrorCode": {
         "type": "string",
-        "description": "Error codes returned by the API.\n\n| Code | HTTP Status | Description |\n|------|-------------|-------------|\n| `validation_error` | 422 | Request validation failed. Check the `errors` object for field-specific messages. |\n| `invalid_domain` | 400 | The sender domain could not be determined from the email address. |\n| `unconfigured_domain` | 400 | The sender domain is not configured or approved for sending. |\n| `send_error` | 400, 500 | General error during email send preparation or domain registration. |\n| `retrieval_error` | 400, 500 | Failed to retrieve resources (e.g., sandbox key without associated user, upstream error). |\n| `transmission_failed` | 502 | Email transmission to the upstream provider failed. |\n| `resource_already_exists` | 409 | The resource (e.g., domain) already exists. |\n| `not_found` | 404 | The specified resource was not found. |\n| `template_not_found` | 404 | The specified template, project, or template version was not found. |\n| `insufficient_scope` | 403 | The API key does not have the required scope for this endpoint. |\n| `schedule_cancellation_failed` | 409, 500 | Could not cancel the scheduled transmission (already sent or upstream error). |\n| `quota_exceeded` | 429 | Monthly sending quota exceeded. Upgrade your plan to continue sending. |\n| `daily_quota_exceeded` | 429 | Daily sending quota exceeded. Try again tomorrow. |\n| `campaign_not_sendable` | 422 | The campaign cannot be sent in its current state (not a draft, or missing subject/sender/content). |\n| `campaign_not_scheduled` | 422 | The campaign is not scheduled, so it cannot be unscheduled. |",
+        "description": "Error codes returned by the API.\n\n| Code | HTTP Status | Description |\n|------|-------------|-------------|\n| `validation_error` | 422 | Request validation failed. Check the `errors` object for field-specific messages. |\n| `invalid_domain` | 400 | The sender domain could not be determined from the email address. |\n| `unconfigured_domain` | 400 | The sender domain is not configured or approved for sending. |\n| `send_error` | 400, 500 | General error during email send preparation or domain registration. |\n| `retrieval_error` | 400, 500 | Failed to retrieve resources (e.g., sandbox key without associated user, upstream error). |\n| `transmission_failed` | 502 | Email transmission to the upstream provider failed. |\n| `resource_already_exists` | 409 | The resource (e.g., domain) already exists. |\n| `not_found` | 404 | The specified resource was not found. |\n| `template_not_found` | 404 | The specified template, project, or template version was not found. |\n| `insufficient_scope` | 403 | The API key does not have the required scope for this endpoint. |\n| `schedule_cancellation_failed` | 409, 500 | The scheduled email can no longer be cancelled (already sent, already cancelled, or being injected right now), or the cancellation itself failed. |\n| `quota_exceeded` | 429 | Monthly sending quota exceeded. Upgrade your plan to continue sending. |\n| `daily_quota_exceeded` | 429 | Daily sending quota exceeded. Try again tomorrow. |\n| `campaign_not_sendable` | 422 | The campaign cannot be sent in its current state (not a draft, or missing subject/sender/content). |\n| `campaign_not_scheduled` | 422 | The campaign is not scheduled, so it cannot be unscheduled. |",
         "enum": [
           "validation_error",
           "idempotency_key_conflict",
@@ -8007,12 +8334,12 @@
       },
       "UpdateWebhookRequest": {
         "type": "object",
-        "description": "Request body for updating a webhook. Only provided fields will be updated.",
+        "description": "Request body for updating a webhook. Only provided fields will be updated. At least one of `name`, `url`, `auth_type`, `events` or `active` is required. Credentials are saved only together with `auth_type`: `basic` requires `auth_username` and `auth_password`; `oauth2` requires `oauth_client_id`, `oauth_client_secret` and `oauth_token_url`.",
         "properties": {
           "name": {
             "type": "string",
             "description": "Name of the webhook",
-            "maxLength": 255,
+            "maxLength": 24,
             "example": "Updated Webhook Name"
           },
           "url": {
@@ -8170,7 +8497,7 @@
           "name": {
             "type": "string",
             "description": "Name of the webhook",
-            "maxLength": 255,
+            "maxLength": 24,
             "example": "Order Notifications"
           },
           "url": {
@@ -8756,7 +9083,7 @@
       },
       "UpdateTemplateRequest": {
         "type": "object",
-        "description": "Request to update an existing email template. All fields are optional - provide only what you want to change. If `html` or `json` is provided, a new active version will be created.",
+        "description": "Request to update an existing email template. All fields are optional - provide only what you want to change. If `html` or `json` is provided, a new active version will be created.\n\n`purpose` is **not** updatable and is not listed below. Sending it here is silently ignored: the request returns `200` with `Template updated successfully.` and the template keeps the purpose it was created with. To move a template to the other module, copy it — a transactional template cannot become a campaign one in place.",
         "properties": {
           "project_id": {
             "type": "integer",
@@ -9188,12 +9515,139 @@
               "scheduled_at": {
                 "type": "string",
                 "format": "date-time",
-                "description": "The UTC date/time when the email should be sent. Must be at least 5 minutes in the future and within 3 days.",
+                "description": "The UTC date/time when the email should be sent. Must be at least 5 minutes in the future and within 30 days.",
                 "example": "2024-01-16T10:00:00Z"
               }
             }
           }
         ]
+      },
+      "ScheduledEmailResponse": {
+        "type": "object",
+        "description": "A scheduled email held by Lettr. This is the `data` object of `POST /emails/scheduled`, `GET /emails/scheduled/{transmissionId}` and `DELETE /emails/scheduled/{transmissionId}`, and each entry of `scheduled_emails` in `GET /emails/scheduled`.\n\n**Breaking change.** Scheduled emails are no longer parked inside SparkPost with `options.start_time` — SparkPost retired its per-transmission GET and DELETE endpoints. Lettr now holds the email in its own store and injects it into SparkPost when it is due, so `request_id` is Lettr's own `sch_...` id, `transmission_id` is a separate field that stays `null` until injection, and `state` values are Lettr's own rather than SparkPost's pass-through states.",
+        "required": [
+          "request_id",
+          "transmission_id",
+          "state",
+          "scheduled_at",
+          "from",
+          "from_name",
+          "subject",
+          "recipients",
+          "num_recipients",
+          "accepted",
+          "rejected",
+          "tag",
+          "failure_reason",
+          "events"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "Lettr's identifier for the scheduled email, prefixed `sch_`. Pass this value to `GET` and `DELETE /emails/scheduled/{transmissionId}`. Before this change the field held SparkPost's transmission id.",
+            "example": "sch_01JQZ3N2K8XW9V6M4TBRC7YHDE"
+          },
+          "transmission_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SparkPost's transmission id. `null` until the email is injected into SparkPost at its delivery time. This is the value that appears as `transmission_id` on your webhook events, so correlate webhooks on this field — not on `request_id`.",
+            "example": "12345678901234567890"
+          },
+          "state": {
+            "type": "string",
+            "description": "Current state of the scheduled email. `scheduled` — waiting for its delivery time, the only state that can be cancelled. `sending` — claimed by the dispatcher and being injected right now. `sent` — injected into SparkPost; delivery detail then comes from `events`. `cancelled` — cancelled before injection, never handed to SparkPost. `failed` — injection was attempted and gave up, see `failure_reason`.",
+            "enum": [
+              "scheduled",
+              "sending",
+              "sent",
+              "cancelled",
+              "failed"
+            ],
+            "example": "scheduled"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The delivery time in ISO 8601 format (UTC).",
+            "example": "2024-01-16T10:00:00Z"
+          },
+          "from": {
+            "type": "string",
+            "format": "email",
+            "description": "Sender email address.",
+            "example": "sender@example.com"
+          },
+          "from_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sender display name.",
+            "example": "Sender Name"
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Email subject line.",
+            "example": "Scheduled Newsletter"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "description": "List of recipient email addresses.",
+            "example": [
+              "recipient@example.com"
+            ]
+          },
+          "num_recipients": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of recipients.",
+            "example": 1
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of recipients accepted for delivery. Before injection this is what Lettr accepted; afterwards it is SparkPost's own count.",
+            "example": 1
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of recipients rejected. `0` before injection.",
+            "example": 0
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tag supplied when the email was scheduled, used for tracking and analytics.",
+            "example": "welcome-series-2024"
+          },
+          "failure_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why injection gave up. Only set when `state` is `failed`.",
+            "example": null
+          },
+          "events": {
+            "type": "array",
+            "description": "Delivery events for this email. Empty until the email has been sent; populated with injection, delivery, bounce, open, click and other events once it has been injected into SparkPost.",
+            "items": {
+              "$ref": "#/components/schemas/EmailEvent"
+            }
+          }
+        }
       },
       "ShowScheduledTransmissionResponse": {
         "type": "object",
@@ -9352,7 +9806,7 @@
                   "string",
                   "null"
                 ],
-                "description": "Sender display name.",
+                "description": "Always null for a sent email: its delivery events do not record the sender display name. A scheduled email returns it from GET /emails/scheduled/{transmissionId} until it is sent.",
                 "example": null
               },
               "subject": {
@@ -11437,7 +11891,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional list to add the contact to"
+            "description": "Optional list to add the contact to. Must be a list of your team, otherwise the response is `422` with `errors.list_id`."
           },
           "properties": {
             "type": [
@@ -11819,6 +12273,7 @@
           },
           "contacts_count": {
             "type": "integer",
+            "description": "Number of subscribed contacts on the topic. Contacts that are unsubscribed, bounced or unverified are not counted.",
             "minimum": 0,
             "example": 12
           },
@@ -12119,7 +12574,7 @@
           "field": {
             "type": "string",
             "maxLength": 255,
-            "description": "Field name to match against (e.g., `email`, `status`, a property name)",
+            "description": "Field to match: `email`, `status`, `created_at`, `properties.<name>` for a custom property, or `topics` / `lists` (by name, `equals` and `not_equals` only). Any other field or operator combination is rejected with `422`.",
             "example": "email"
           },
           "operator": {
@@ -12966,6 +13421,59 @@
                 "type": "integer",
                 "minimum": 0,
                 "description": "Total contact × topic pairs processed"
+              }
+            }
+          }
+        }
+      },
+      "ScheduledEmailsPagination": {
+        "type": "object",
+        "required": [
+          "total",
+          "per_page",
+          "current_page",
+          "last_page"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "current_page": {
+            "type": "integer"
+          },
+          "last_page": {
+            "type": "integer"
+          }
+        }
+      },
+      "ListScheduledEmailsResponse": {
+        "type": "object",
+        "required": [
+          "message",
+          "data"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "scheduled_emails",
+              "pagination"
+            ],
+            "properties": {
+              "scheduled_emails": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ScheduledEmailResponse"
+                }
+              },
+              "pagination": {
+                "$ref": "#/components/schemas/ScheduledEmailsPagination"
               }
             }
           }

@@ -37,11 +37,15 @@ Provide HTML **or** JSON (the TOPOL.io editor format), not both:
 ```rust
 let options = CreateTemplateOptions::new("Welcome Email")
     .with_html("<h1>Hello {{FIRST_NAME}}!</h1>")
-    .with_project_id(5);
+    .with_project_id(5)
+    .with_purpose(TemplatePurpose::Campaign); // optional; transactional by default
 
 let result = client.templates.create(options).await?;
 println!("Created: {} (slug: {})", result.name, result.slug);
 ```
+
+> **Warning:**
+> **`purpose` is set once and cannot be changed.** Omit it and you get a transactional template, which a [campaign](https://docs.lettr.com/learn/campaigns/introduction) cannot use — and `purpose` is not accepted by the update endpoint, so the only remedy is to copy the template in the app. If the content is going to an audience, set it now. See [Transactional vs. Marketing Templates](https://docs.lettr.com/learn/templates/projects#transactional-vs-marketing-templates).
 
 ## Update & Delete
 

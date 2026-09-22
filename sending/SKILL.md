@@ -26,7 +26,8 @@ Never invent method names from memory — the generated reference is the source 
 | Same content to many recipients | put up to 50 addresses in `to` (one API call delivers a separate copy to each); `substitution_data` applies to the whole batch, not per-recipient |
 | More than 50 recipients | chunk into batches of ≤50 and send a separate call per batch — sequentially or in parallel, staying under 3 req/s. There is no bulk endpoint; looping batches is the intended pattern |
 | Must not double-send on retry | Pass an **idempotency key** derived from the business event (e.g. `order-confirmation-{orderId}`) and reuse the *same* value on every retry — the API returns the original result instead of sending again. See §3a. You no longer need a DB flag or cache key for this |
-| Send later | `POST /emails/scheduled` — keep the returned `transmissionId` to cancel |
+| Send later | `POST /emails/scheduled`, 5 min – 30 days out. Keep the returned **`request_id`** (`sch_…`) — that is what reads and cancels it. The `transmission_id` on the same response is the provider's, is `null` until the email actually sends, and is the id **webhook events** carry |
+| Find a scheduled email again | `GET /emails/scheduled?status=scheduled` — the list endpoint, if the `sch_` id wasn't kept |
 
 ## 3. Preconditions that cause most failures
 

@@ -24,11 +24,14 @@ op: `getEmailDetail` · errors: 401, 404, 422, 500
 ### `POST /emails/scheduled` — Schedule Email
 op: `scheduleEmail` · body: ScheduleEmailRequest · errors: 400, 401, 403, 422, 429, 500, 502
 
+### `GET /emails/scheduled` — List Scheduled Emails
+op: `listScheduledEmails` · errors: 401, 403, 422, 500
+
 ### `GET /emails/scheduled/{transmissionId}` — Get Scheduled Email
 op: `showScheduledEmail` · errors: 401, 403, 404, 500
 
 ### `DELETE /emails/scheduled/{transmissionId}` — Cancel Scheduled Email
-op: `cancelScheduledEmail` · errors: 401, 403, 409, 500
+op: `cancelScheduledEmail` · errors: 401, 403, 404, 409, 500
 
 ## Templates
 
@@ -99,7 +102,7 @@ op: `listAudienceLists` · errors: 401, 403, 422, 500
 op: `createAudienceList` · body: StoreAudienceListRequest { **name** } · errors: 401, 403, 422, 500
 
 ### `DELETE /audience/lists/bulk` — Bulk delete audience lists
-op: `bulkDestroyAudienceLists` · body: BulkDestroyAudienceListsRequest { **list_ids** } · errors: 401, 403, 422, 500
+op: `bulkDestroyAudienceLists` · body: BulkDestroyAudienceListsRequest { **list_ids** } · errors: 401, 403, 409, 422, 500
 
 ### `GET /audience/lists/{listId}` — Show an audience list
 op: `showAudienceList` · errors: 401, 403, 404, 500
@@ -108,7 +111,7 @@ op: `showAudienceList` · errors: 401, 403, 404, 500
 op: `updateAudienceList` · body: UpdateAudienceListRequest { name } · errors: 401, 403, 404, 422, 500
 
 ### `DELETE /audience/lists/{listId}` — Delete an audience list
-op: `destroyAudienceList` · errors: 401, 403, 404, 500
+op: `destroyAudienceList` · errors: 401, 403, 404, 409, 500
 
 ### `GET /audience/contacts` — List audience contacts
 op: `listAudienceContacts` · errors: 401, 403, 422, 500

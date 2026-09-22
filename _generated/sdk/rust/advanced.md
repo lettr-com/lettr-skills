@@ -583,18 +583,24 @@ If you see authentication errors:
     - Confirm you're reading from the correct environment variable
 
 **Request timeout**
-If requests timeout:
+Every request has a 30-second timeout, from connecting until the response is
+    read. When it is hit, the call returns `Error::Http` and `is_timeout()` on the
+    inner error is `true`. The timeout cannot be changed.
 
-    - Increase the client timeout (default may be too short)
+    If requests time out:
+
     - Check your network connectivity and firewall settings
     - Verify `app.lettr.com` is reachable
-    - Use a custom reqwest client with longer timeout settings
+    - A timed-out send may still have been accepted. Retry with the same
+      `with_idempotency_key` value so the retry cannot deliver a second email
+    - If one call legitimately needs longer, split the work into smaller requests
+      (for example, smaller bulk batches)
 
 **Compilation or dependency errors**
 If you see compilation errors:
 
     - Run `cargo update` to update dependencies
-    - Check your Rust version is 1.70 or later: `rustc --version`
+    - Check your Rust version is 1.85 or later: `rustc --version`
     - Verify the crate name is correct: `lettr`
     - Clear build artifacts: `cargo clean`
 
